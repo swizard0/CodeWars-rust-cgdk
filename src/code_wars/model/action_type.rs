@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord)]
 pub enum ActionType {
     Unknown = -1,

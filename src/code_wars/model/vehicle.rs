@@ -40,6 +40,7 @@ pub struct Vehicle {
     groups: Vec<i32>,
 }
 
+#[allow(dead_code)]
 impl Vehicle {
     pub fn new() -> Self {
         Vehicle {

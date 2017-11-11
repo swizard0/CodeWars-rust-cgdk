@@ -19,6 +19,7 @@ pub struct Move {
     facility_id: i64,
 }
 
+#[allow(dead_code)]
 impl Move {
     pub fn new() -> Self {
         Move {
