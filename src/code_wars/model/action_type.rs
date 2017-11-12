@@ -13,4 +13,5 @@ pub enum ActionType {
     Rotate = 8,
     Scale = 9,
     SetupVehicleProduction = 10,
+    TacticalNuclearStrike = 11,
 }
