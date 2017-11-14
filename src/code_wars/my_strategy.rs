@@ -3,18 +3,20 @@ use super::model::{ActionType, Game, Move, Player, World};
 use super::formation::Formations;
 
 pub struct MyStrategy {
-    forms: Formations,
+    allies: Formations,
+    enemies: Formations,
 }
 
 impl MyStrategy {
     pub fn new() -> Self {
         MyStrategy {
-            forms: Formations::new(),
+            allies: Formations::new(),
+            enemies: Formations::new(),
         }
     }
 
-    pub fn move_(&mut self, _me: &Player, world: &World, _game: &Game, move_: &mut Move) {
-        self.update_formations(world);
+    pub fn move_(&mut self, me: &Player, world: &World, _game: &Game, move_: &mut Move) {
+        self.update_formations(me, world);
 
         if world.tick_index == 0 {
             move_
@@ -31,12 +33,24 @@ impl MyStrategy {
 }
 
 impl MyStrategy {
-    fn update_formations(&mut self, world: &World) {
-        if !world.new_vehicles.is_empty() {
-            self.forms.add_from_iter(world.new_vehicles.iter());
+    fn update_formations(&mut self, me: &Player, world: &World) {
+        {
+            // new vehicles incoming
+            let mut allies_builder = self.allies.with_new_form();
+            let mut enemies_builder = self.enemies.with_new_form();
+            for vehicle in world.new_vehicles.iter() {
+                if vehicle.player_id() == me.id {
+                    allies_builder.add(vehicle);
+                } else {
+                    enemies_builder.add(vehicle);
+                }
+            }
         }
-        if !world.vehicle_updates.is_empty() {
-            self.forms.update_from_iter(world.vehicle_updates.iter());
+
+        // vehicles updates incoming
+        for update in world.vehicle_updates.iter() {
+            self.allies.update(update);
+            self.enemies.update(update);
         }
     }
 }
