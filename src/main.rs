@@ -1,9 +1,12 @@
 #![allow(non_snake_case)]
 extern crate argparse;
 extern crate byteorder;
+extern crate env_logger;
+#[macro_use] extern crate log;
 
 mod code_wars;
 
+#[derive(Debug)]
 struct Args {
     host: String,
     port: u16,
@@ -16,12 +19,19 @@ fn main() {
     use byteorder::LittleEndian;
     use code_wars::client::run;
 
+    // env_logger::init().unwrap();
+    env_logger::LogBuilder::new()
+        .filter(Some("CodeWars_rust_cgdk"), log::LogLevelFilter::Debug)
+        .init()
+        .unwrap();
+
     let mut args = Args {
         host: "127.0.0.1".to_string(),
         port: 31001,
         token: "0000000000000000".to_string(),
     };
     parse_args(&mut args);
+    debug!("starting with arguments: {:?}", args);
     match run::<LittleEndian>(&args.host[..], args.port, args.token) {
         Ok(_) => (),
         Err(v) => {

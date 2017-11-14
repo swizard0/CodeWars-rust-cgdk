@@ -1,8 +1,10 @@
 [package]
 name = "CodeWars-rust-cgdk"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["swizard <me@swizard.info>", "elsid <elsid.mail@gmail.com>"]
 
 [dependencies]
 argparse = "0.2.1"
 byteorder = "1.1.0"
+log = "0.3"
+env_logger = "0.4"
