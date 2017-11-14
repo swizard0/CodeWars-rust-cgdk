@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use super::model::{Vehicle, VehicleUpdate};
+use super::model::{Vehicle, VehicleUpdate, VehicleType};
 use super::rect::Rect;
 
 pub type FormationId = i32;
@@ -26,10 +26,9 @@ impl Formations {
     }
 
     pub fn with_new_form<'a>(&'a mut self) -> FormationBuilder<'a> {
-        self.counter += 1;
         FormationBuilder {
-            id: self.counter,
-            form: None,
+            id: &mut self.counter,
+            in_progress: HashMap::new(),
             forms: &mut self.forms,
             by_vehicle_id: &mut self.by_vehicle_id,
         }
@@ -48,18 +47,24 @@ impl Formations {
 }
 
 pub struct FormationBuilder<'a> {
-    id: FormationId,
-    form: Option<Formation>,
+    id: &'a mut FormationId,
+    in_progress: HashMap<VehicleType, (FormationId, Formation)>,
     forms: &'a mut HashMap<FormationId, Formation>,
     by_vehicle_id: &'a mut VehiclesDict,
 }
 
 impl<'a> FormationBuilder<'a> {
     pub fn add(&mut self, vehicle: &Vehicle) {
-        let form = self.form.get_or_insert_with(Formation::new);
+        let counter = &mut self.id;
+        let &mut (id, ref mut form) = self.in_progress
+            .entry(vehicle.type_())
+            .or_insert_with(|| {
+                **counter += 1;
+                (**counter, Formation::new(vehicle.type_()))
+            });
         form.add(vehicle);
         self.by_vehicle_id.insert(vehicle.id(), Unit {
-            form_id: self.id,
+            form_id: id,
             vehicle: vehicle.clone(),
         });
     }
@@ -67,23 +72,26 @@ impl<'a> FormationBuilder<'a> {
 
 impl<'a> Drop for FormationBuilder<'a> {
     fn drop(&mut self) {
-        if let Some(mut form) = self.form.take() {
-            debug!("new formation built: count: {}, bbox: {:?}",
-                   self.by_vehicle_id.len(),
+        for (_type, (form_id, mut form)) in self.in_progress.drain() {
+            debug!("new formation built: count: {}, type: {:?}, bbox: {:?}",
+                   form.vehicles.len(),
+                   { *&form.type_ },
                    form.bounding_box(&self.by_vehicle_id));
-            self.forms.insert(self.id, form);
+            self.forms.insert(form_id, form);
         }
     }
 }
 
 struct Formation {
+    type_: VehicleType,
     vehicles: Vec<i64>,
     bbox: Option<Rect>,
 }
 
 impl Formation {
-    fn new() -> Formation {
+    fn new(type_: VehicleType) -> Formation {
         Formation {
+            type_,
             vehicles: Vec::new(),
             bbox: None,
         }
