@@ -3,5 +3,6 @@ pub mod model;
 mod my_strategy;
 mod formation;
 mod rect;
+mod side;
 
 pub use self::my_strategy::MyStrategy;

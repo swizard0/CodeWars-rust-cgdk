@@ -1,5 +1,6 @@
 use super::model::{ActionType, Game, Move, Player, World};
 
+use super::side::Side;
 use super::formation::Formations;
 
 pub struct MyStrategy {
@@ -10,8 +11,8 @@ pub struct MyStrategy {
 impl MyStrategy {
     pub fn new() -> Self {
         MyStrategy {
-            allies: Formations::new(),
-            enemies: Formations::new(),
+            allies: Formations::new(Side::Allies),
+            enemies: Formations::new(Side::Enemies),
         }
     }
 
@@ -28,6 +29,9 @@ impl MyStrategy {
                 .set_action(ActionType::Move)
                 .set_x(world.width / 2.0)
                 .set_y(world.height / 2.0);
+        } else if world.tick_index % 128 == 0 {
+            debug!("tick%128 = {}", world.tick_index);
+            self.run_mind();
         }
     }
 }
@@ -51,6 +55,13 @@ impl MyStrategy {
         for update in world.vehicle_updates.iter() {
             self.allies.update(update);
             self.enemies.update(update);
+        }
+    }
+
+    fn run_mind(&mut self) {
+        let mut forms_iter = self.allies.iter();
+        while let Some(mut form) = forms_iter.next() {
+            debug!("run_mind for formation {} on {:?}", { form.id }, form.bounding_box());
         }
     }
 }

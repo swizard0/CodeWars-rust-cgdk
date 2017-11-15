@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use super::model::{Vehicle, VehicleUpdate, VehicleType};
 use super::rect::Rect;
+use super::side::Side;
 
 pub type FormationId = i32;
 pub type VehiclesDict = HashMap<i64, Unit>;
@@ -11,14 +13,16 @@ pub struct Unit {
 }
 
 pub struct Formations {
+    pub side: Side,
     counter: FormationId,
     forms: HashMap<FormationId, Formation>,
     by_vehicle_id: VehiclesDict,
 }
 
 impl Formations {
-    pub fn new() -> Formations {
+    pub fn new(side: Side) -> Formations {
         Formations {
+            side,
             counter: 0,
             forms: HashMap::new(),
             by_vehicle_id: HashMap::new(),
@@ -35,14 +39,76 @@ impl Formations {
     }
 
     pub fn update(&mut self, update: &VehicleUpdate) {
-        if let Some(unit) = self.by_vehicle_id.get_mut(&update.id) {
-            if let Some(form) = self.forms.get_mut(&unit.form_id) {
-                form.update(&mut unit.vehicle, update);
-            } else {
-                // that supposed to be in sync
-                panic!("no formation with id = {} for {:?}", unit.form_id, update);
+        if let Entry::Occupied(mut oe) = self.by_vehicle_id.entry(update.id) {
+            let form_id = oe.get().form_id;
+            let (remove_vehicle, remove_form) =
+                if let Some(form) = self.forms.get_mut(&form_id) {
+                    match form.update(&mut oe.get_mut().vehicle, update) {
+                        UpdateResult::Regular =>
+                            (false, false),
+                        UpdateResult::VehicleDestroyed =>
+                            (true, false),
+                        UpdateResult::FormationDestroyed =>
+                            (true, true),
+                    }
+                } else {
+                    // that is supposed to be in sync
+                    panic!("no formation with id = {} for {:?}", form_id, update)
+                };
+            if remove_vehicle {
+                debug!("unit {} destroyed in {:?} formation {}", oe.get().vehicle.id(), self.side, form_id);
+                oe.remove_entry();
+            }
+            if remove_form {
+                debug!("{:?} formation {} is destroyed", self.side, form_id);
+                self.forms.remove(&form_id);
             }
         }
+    }
+
+    pub fn iter<'a>(&'a mut self) -> FormationsIter<'a> {
+        FormationsIter {
+            forms_iter: self.forms.iter_mut(),
+            by_vehicle_id: &mut self.by_vehicle_id,
+        }
+    }
+
+    pub fn get_by_id<'a>(&'a mut self, form_id: FormationId) -> Option<FormationRef<'a>> {
+        let by_vehicle_id = &mut self.by_vehicle_id;
+        self.forms
+            .get_mut(&form_id)
+            .map(move |form| FormationRef { id: form_id, form, by_vehicle_id, })
+    }
+}
+
+pub struct FormationsIter<'a> {
+    forms_iter: ::std::collections::hash_map::IterMut<'a, FormationId, Formation>,
+    by_vehicle_id: &'a mut VehiclesDict,
+}
+
+impl<'a> FormationsIter<'a> {
+    pub fn next<'b>(&'b mut self) -> Option<FormationRef<'b>> {
+        if let Some((&form_id, form)) = self.forms_iter.next() {
+            Some(FormationRef {
+                id: form_id,
+                form,
+                by_vehicle_id: self.by_vehicle_id,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+pub struct FormationRef<'a> {
+    pub id: FormationId,
+    form: &'a mut Formation,
+    by_vehicle_id: &'a mut VehiclesDict,
+}
+
+impl<'a> FormationRef<'a> {
+    pub fn bounding_box(&mut self) -> &Rect {
+        self.form.bounding_box(self.by_vehicle_id)
     }
 }
 
@@ -75,7 +141,7 @@ impl<'a> Drop for FormationBuilder<'a> {
         for (_type, (form_id, mut form)) in self.in_progress.drain() {
             debug!("new formation built: count: {}, type: {:?}, bbox: {:?}",
                    form.vehicles.len(),
-                   { *&form.type_ },
+                   { form.type_ },
                    form.bounding_box(&self.by_vehicle_id));
             self.forms.insert(form_id, form);
         }
@@ -86,6 +152,12 @@ struct Formation {
     type_: VehicleType,
     vehicles: Vec<i64>,
     bbox: Option<Rect>,
+}
+
+enum UpdateResult {
+    Regular,
+    VehicleDestroyed,
+    FormationDestroyed,
 }
 
 impl Formation {
@@ -101,7 +173,7 @@ impl Formation {
         self.vehicles.push(vehicle.id());
     }
 
-    fn update(&mut self, vehicle: &mut Vehicle, update: &VehicleUpdate) {
+    fn update(&mut self, vehicle: &mut Vehicle, update: &VehicleUpdate) -> UpdateResult {
         vehicle.set_x(update.x);
         vehicle.set_y(update.y);
         vehicle.set_durability(update.durability);
@@ -109,6 +181,19 @@ impl Formation {
         vehicle.set_selected(update.selected);
         vehicle.set_groups(update.groups.clone());
         self.bbox = None; // invalidate cached bbox
+        if vehicle.durability() > 0 {
+            UpdateResult::Regular
+        } else if let Some(i) = self.vehicles.iter().position(|&id| id == vehicle.id()) {
+            self.vehicles.swap_remove(i);
+            if self.vehicles.is_empty() {
+                UpdateResult::FormationDestroyed
+            } else {
+                UpdateResult::VehicleDestroyed
+            }
+        } else {
+            // that is not supposed to happen
+            panic!("updating vehicle {} in formation which does not contain it", vehicle.id())
+        }
     }
 
     fn bounding_box(&mut self, by_vehicle_id: &VehiclesDict) -> &Rect {
