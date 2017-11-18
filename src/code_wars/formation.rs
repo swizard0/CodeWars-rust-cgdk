@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use super::model::{Vehicle, VehicleUpdate, VehicleType};
+use super::derivatives::Derivatives;
 use super::rect::Rect;
 use super::side::Side;
 
@@ -10,6 +11,7 @@ pub type VehiclesDict = HashMap<i64, Unit>;
 pub struct Unit {
     form_id: FormationId,
     vehicle: Vehicle,
+    dvt: Derivatives,
 }
 
 pub struct Formations {
@@ -38,12 +40,12 @@ impl Formations {
         }
     }
 
-    pub fn update(&mut self, update: &VehicleUpdate) {
+    pub fn update(&mut self, update: &VehicleUpdate, tick: i32) {
         if let Entry::Occupied(mut oe) = self.by_vehicle_id.entry(update.id) {
             let form_id = oe.get().form_id;
             let (remove_vehicle, remove_form) =
                 if let Some(form) = self.forms.get_mut(&form_id) {
-                    match form.update(&mut oe.get_mut().vehicle, update) {
+                    match form.update(&mut oe.get_mut(), update, tick) {
                         UpdateResult::Regular =>
                             (false, false),
                         UpdateResult::VehicleDestroyed =>
@@ -73,7 +75,7 @@ impl Formations {
         }
     }
 
-    pub fn get_by_id<'a>(&'a mut self, form_id: FormationId) -> Option<FormationRef<'a>> {
+    pub fn _get_by_id<'a>(&'a mut self, form_id: FormationId) -> Option<FormationRef<'a>> {
         let by_vehicle_id = &mut self.by_vehicle_id;
         self.forms
             .get_mut(&form_id)
@@ -110,6 +112,14 @@ impl<'a> FormationRef<'a> {
     pub fn bounding_box(&mut self) -> &Rect {
         self.form.bounding_box(self.by_vehicle_id)
     }
+
+    pub fn dvt_sums(&mut self, tick: i32) -> &Derivatives {
+        if self.form.update_tick < tick {
+            self.form.dvt_s.clear();
+            self.form.update_tick = tick;
+        }
+        &self.form.dvt_s
+    }
 }
 
 pub struct FormationBuilder<'a> {
@@ -120,18 +130,19 @@ pub struct FormationBuilder<'a> {
 }
 
 impl<'a> FormationBuilder<'a> {
-    pub fn add(&mut self, vehicle: &Vehicle) {
+    pub fn add(&mut self, vehicle: &Vehicle, tick: i32) {
         let counter = &mut self.id;
         let &mut (id, ref mut form) = self.in_progress
             .entry(vehicle.type_())
             .or_insert_with(|| {
                 **counter += 1;
-                (**counter, Formation::new(vehicle.type_()))
+                (**counter, Formation::new(vehicle.type_(), tick))
             });
         form.add(vehicle);
         self.by_vehicle_id.insert(vehicle.id(), Unit {
             form_id: id,
             vehicle: vehicle.clone(),
+            dvt: Derivatives::new(),
         });
     }
 }
@@ -152,6 +163,9 @@ struct Formation {
     type_: VehicleType,
     vehicles: Vec<i64>,
     bbox: Option<Rect>,
+    update_tick: i32,
+    // derivatives sum
+    dvt_s: Derivatives,
 }
 
 enum UpdateResult {
@@ -161,11 +175,13 @@ enum UpdateResult {
 }
 
 impl Formation {
-    fn new(type_: VehicleType) -> Formation {
+    fn new(type_: VehicleType, tick: i32) -> Formation {
         Formation {
             type_,
             vehicles: Vec::new(),
             bbox: None,
+            update_tick: tick,
+            dvt_s: Derivatives::new(),
         }
     }
 
@@ -173,17 +189,36 @@ impl Formation {
         self.vehicles.push(vehicle.id());
     }
 
-    fn update(&mut self, vehicle: &mut Vehicle, update: &VehicleUpdate) -> UpdateResult {
-        vehicle.set_x(update.x);
-        vehicle.set_y(update.y);
-        vehicle.set_durability(update.durability);
-        vehicle.set_remaining_attack_cooldown_ticks(update.remaining_attack_cooldown_ticks);
-        vehicle.set_selected(update.selected);
-        vehicle.set_groups(update.groups.clone());
-        self.bbox = None; // invalidate cached bbox
-        if vehicle.durability() > 0 {
+    fn update(&mut self, unit: &mut Unit, update: &VehicleUpdate, tick: i32) -> UpdateResult {
+        // derivatives
+        unit.dvt.d_x = update.x - unit.vehicle.x();
+        unit.dvt.d_y = update.y - unit.vehicle.y();
+        unit.dvt.d_durability = update.durability - unit.vehicle.durability();
+        // absolutes
+        unit.vehicle.set_x(update.x);
+        unit.vehicle.set_y(update.y);
+        unit.vehicle.set_durability(update.durability);
+        unit.vehicle.set_remaining_attack_cooldown_ticks(update.remaining_attack_cooldown_ticks);
+        unit.vehicle.set_selected(update.selected);
+        unit.vehicle.set_groups(update.groups.clone());
+        // invalidate cached bbox
+        self.bbox = None;
+        // check if vehicle is destroyed
+        if unit.vehicle.durability() > 0 {
+            // vehicle is alive
+            if self.update_tick < tick {
+                self.dvt_s.d_x = unit.dvt.d_x;
+                self.dvt_s.d_y = unit.dvt.d_y;
+                self.dvt_s.d_durability = unit.dvt.d_durability;
+                self.update_tick = tick;
+            } else {
+                self.dvt_s.d_x += unit.dvt.d_x;
+                self.dvt_s.d_y += unit.dvt.d_y;
+                self.dvt_s.d_durability += unit.dvt.d_durability;
+            }
             UpdateResult::Regular
-        } else if let Some(i) = self.vehicles.iter().position(|&id| id == vehicle.id()) {
+        } else if let Some(i) = self.vehicles.iter().position(|&id| id == unit.vehicle.id()) {
+            // vehicle is destroyed
             self.vehicles.swap_remove(i);
             if self.vehicles.is_empty() {
                 UpdateResult::FormationDestroyed
@@ -192,7 +227,7 @@ impl Formation {
             }
         } else {
             // that is not supposed to happen
-            panic!("updating vehicle {} in formation which does not contain it", vehicle.id())
+            panic!("updating vehicle {} in formation which does not contain it", unit.vehicle.id())
         }
     }
 

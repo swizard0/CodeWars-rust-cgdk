@@ -2,6 +2,7 @@ use super::model::{ActionType, Game, Move, Player, World};
 
 use super::side::Side;
 use super::formation::Formations;
+use super::instinct;
 
 pub struct MyStrategy {
     allies: Formations,
@@ -31,7 +32,7 @@ impl MyStrategy {
                 .set_y(world.height / 2.0);
         } else if world.tick_index % 128 == 0 {
             debug!("tick%128 = {}", world.tick_index);
-            self.run_mind();
+            self.run_instinct(world);
         }
     }
 }
@@ -44,24 +45,24 @@ impl MyStrategy {
             let mut enemies_builder = self.enemies.with_new_form();
             for vehicle in world.new_vehicles.iter() {
                 if vehicle.player_id() == me.id {
-                    allies_builder.add(vehicle);
+                    allies_builder.add(vehicle, world.tick_index);
                 } else {
-                    enemies_builder.add(vehicle);
+                    enemies_builder.add(vehicle, world.tick_index);
                 }
             }
         }
 
         // vehicles updates incoming
         for update in world.vehicle_updates.iter() {
-            self.allies.update(update);
-            self.enemies.update(update);
+            self.allies.update(update, world.tick_index);
+            self.enemies.update(update, world.tick_index);
         }
     }
 
-    fn run_mind(&mut self) {
+    fn run_instinct(&mut self, world: &World) {
         let mut forms_iter = self.allies.iter();
-        while let Some(mut form) = forms_iter.next() {
-            debug!("run_mind for formation {} on {:?}", { form.id }, form.bounding_box());
+        while let Some(form) = forms_iter.next() {
+            instinct::run(form, world);
         }
     }
 }
