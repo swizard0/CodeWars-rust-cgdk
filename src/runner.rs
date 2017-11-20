@@ -1,4 +1,7 @@
 extern crate core;
+extern crate env_logger;
+#[macro_use]
+extern crate log;
 
 mod model;
 mod my_strategy;

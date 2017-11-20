@@ -1,5 +1,4 @@
-
-use super::model::World;
+use model::World;
 use super::formation::FormationRef;
 
 pub fn run<'a>(mut form: FormationRef<'a>, world: &World) {

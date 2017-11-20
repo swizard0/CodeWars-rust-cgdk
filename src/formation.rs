@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
-use super::model::{Vehicle, VehicleUpdate, VehicleType};
+use model::{Vehicle, VehicleUpdate, VehicleType};
 use super::derivatives::Derivatives;
 use super::rect::Rect;
 use super::side::Side;
@@ -58,7 +58,7 @@ impl Formations {
                     panic!("no formation with id = {} for {:?}", form_id, update)
                 };
             if remove_vehicle {
-                debug!("unit {} destroyed in {:?} formation {}", oe.get().vehicle.id(), self.side, form_id);
+                debug!("unit {} destroyed in {:?} formation {}", oe.get().vehicle.id, self.side, form_id);
                 oe.remove_entry();
             }
             if remove_form {
@@ -124,7 +124,7 @@ impl<'a> FormationRef<'a> {
 
 pub struct FormationBuilder<'a> {
     id: &'a mut FormationId,
-    in_progress: HashMap<VehicleType, (FormationId, Formation)>,
+    in_progress: HashMap<Option<VehicleType>, (FormationId, Formation)>,
     forms: &'a mut HashMap<FormationId, Formation>,
     by_vehicle_id: &'a mut VehiclesDict,
 }
@@ -133,13 +133,13 @@ impl<'a> FormationBuilder<'a> {
     pub fn add(&mut self, vehicle: &Vehicle, tick: i32) {
         let counter = &mut self.id;
         let &mut (id, ref mut form) = self.in_progress
-            .entry(vehicle.type_())
+            .entry(vehicle.kind)
             .or_insert_with(|| {
                 **counter += 1;
-                (**counter, Formation::new(vehicle.type_(), tick))
+                (**counter, Formation::new(vehicle.kind, tick))
             });
         form.add(vehicle);
-        self.by_vehicle_id.insert(vehicle.id(), Unit {
+        self.by_vehicle_id.insert(vehicle.id, Unit {
             form_id: id,
             vehicle: vehicle.clone(),
             dvt: Derivatives::new(),
@@ -152,7 +152,7 @@ impl<'a> Drop for FormationBuilder<'a> {
         for (_type, (form_id, mut form)) in self.in_progress.drain() {
             debug!("new formation built: count: {}, type: {:?}, bbox: {:?}",
                    form.vehicles.len(),
-                   { form.type_ },
+                   { form.kind },
                    form.bounding_box(&self.by_vehicle_id));
             self.forms.insert(form_id, form);
         }
@@ -160,7 +160,7 @@ impl<'a> Drop for FormationBuilder<'a> {
 }
 
 struct Formation {
-    type_: VehicleType,
+    kind: Option<VehicleType>,
     vehicles: Vec<i64>,
     bbox: Option<Rect>,
     update_tick: i32,
@@ -175,9 +175,9 @@ enum UpdateResult {
 }
 
 impl Formation {
-    fn new(type_: VehicleType, tick: i32) -> Formation {
+    fn new(kind: Option<VehicleType>, tick: i32) -> Formation {
         Formation {
-            type_,
+            kind,
             vehicles: Vec::new(),
             bbox: None,
             update_tick: tick,
@@ -186,25 +186,25 @@ impl Formation {
     }
 
     fn add(&mut self, vehicle: &Vehicle) {
-        self.vehicles.push(vehicle.id());
+        self.vehicles.push(vehicle.id);
     }
 
     fn update(&mut self, unit: &mut Unit, update: &VehicleUpdate, tick: i32) -> UpdateResult {
         // derivatives
-        unit.dvt.d_x = update.x - unit.vehicle.x();
-        unit.dvt.d_y = update.y - unit.vehicle.y();
-        unit.dvt.d_durability = update.durability - unit.vehicle.durability();
+        unit.dvt.d_x = update.x - unit.vehicle.x;
+        unit.dvt.d_y = update.y - unit.vehicle.y;
+        unit.dvt.d_durability = update.durability - unit.vehicle.durability;
         // absolutes
-        unit.vehicle.set_x(update.x);
-        unit.vehicle.set_y(update.y);
-        unit.vehicle.set_durability(update.durability);
-        unit.vehicle.set_remaining_attack_cooldown_ticks(update.remaining_attack_cooldown_ticks);
-        unit.vehicle.set_selected(update.selected);
-        unit.vehicle.set_groups(update.groups.clone());
+        unit.vehicle.x = update.x;
+        unit.vehicle.y = update.y;
+        unit.vehicle.durability = update.durability;
+        unit.vehicle.remaining_attack_cooldown_ticks = update.remaining_attack_cooldown_ticks;
+        unit.vehicle.selected = update.selected;
+        unit.vehicle.groups = update.groups.clone();
         // invalidate cached bbox
         self.bbox = None;
         // check if vehicle is destroyed
-        if unit.vehicle.durability() > 0 {
+        if unit.vehicle.durability > 0 {
             // vehicle is alive
             if self.update_tick < tick {
                 self.dvt_s.d_x = unit.dvt.d_x;
@@ -217,7 +217,7 @@ impl Formation {
                 self.dvt_s.d_durability += unit.dvt.d_durability;
             }
             UpdateResult::Regular
-        } else if let Some(i) = self.vehicles.iter().position(|&id| id == unit.vehicle.id()) {
+        } else if let Some(i) = self.vehicles.iter().position(|&id| id == unit.vehicle.id) {
             // vehicle is destroyed
             self.vehicles.swap_remove(i);
             if self.vehicles.is_empty() {
@@ -227,7 +227,7 @@ impl Formation {
             }
         } else {
             // that is not supposed to happen
-            panic!("updating vehicle {} in formation which does not contain it", unit.vehicle.id())
+            panic!("updating vehicle {} in formation which does not contain it", unit.vehicle.id)
         }
     }
 
@@ -237,7 +237,7 @@ impl Formation {
             let iter = vehicles
                 .iter()
                 .flat_map(|id| by_vehicle_id.get(id))
-                .map(|unit| (unit.vehicle.x(), unit.vehicle.y(), unit.vehicle.radius()));
+                .map(|unit| (unit.vehicle.x, unit.vehicle.y, unit.vehicle.radius));
             Rect::from_iter(iter)
         })
     }
