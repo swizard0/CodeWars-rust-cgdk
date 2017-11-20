@@ -1,6 +1,5 @@
 use code_wars::model::{Game, PlayerContext, Move};
 
-#[allow(dead_code)]
 #[derive(Debug, PartialEq)]
 pub enum Message {
     UnknownMessage,

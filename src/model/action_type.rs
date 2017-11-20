@@ -1,7 +1,6 @@
 #[allow(dead_code)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash)]
 pub enum ActionType {
-    Unknown = -1,
     None = 0,
     ClearAndSelect = 1,
     AddToSelection = 2,
@@ -14,4 +13,9 @@ pub enum ActionType {
     Scale = 9,
     SetupVehicleProduction = 10,
     TacticalNuclearStrike = 11,
+}
+
+#[allow(dead_code)]
+impl ActionType {
+    pub const COUNT: usize = 12;
 }
