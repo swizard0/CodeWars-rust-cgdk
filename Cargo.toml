@@ -1,6 +1,6 @@
 [package]
-name = "CodeWars-rust-cgdk"
-version = "0.1.7"
+name = "code_wars_rust_cgdk"
+version = "0.1.1"
 authors = ["swizard <me@swizard.info>", "elsid <elsid.mail@gmail.com>"]
 
 [dependencies]
@@ -8,3 +8,7 @@ argparse = "0.2.1"
 byteorder = "1.1.0"
 log = "0.3"
 env_logger = "0.4"
+
+[[bin]]
+name = "code_wars"
+path = "src/runner.rs"
