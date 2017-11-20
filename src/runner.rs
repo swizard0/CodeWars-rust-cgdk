@@ -23,6 +23,12 @@ fn main() {
     use std::process::exit;
     use my_strategy::MyStrategy;
 
+    // env_logger::init().unwrap();
+    env_logger::LogBuilder::new()
+        .filter(Some("code_wars"), log::LogLevelFilter::Debug)
+        .init()
+        .unwrap();
+
     let args = parse_args();
 
     let client = match RemoteProcessClient::connect(&args.host[..], args.port) {
