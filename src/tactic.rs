@@ -31,10 +31,12 @@ impl Tactic {
         self.queue.push(plan);
     }
 
-    pub fn most_urgent_only(&mut self) -> Option<Plan> {
-        let plan = self.queue.pop();
+    pub fn most_urgent(&mut self) -> Option<Plan> {
+        self.queue.pop()
+    }
+
+    pub fn clear(&mut self) {
         self.queue.clear();
-        plan
     }
 }
 

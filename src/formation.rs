@@ -75,7 +75,7 @@ impl Formations {
         }
     }
 
-    pub fn _get_by_id<'a>(&'a mut self, form_id: FormationId) -> Option<FormationRef<'a>> {
+    pub fn get_by_id<'a>(&'a mut self, form_id: FormationId) -> Option<FormationRef<'a>> {
         let by_vehicle_id = &mut self.by_vehicle_id;
         self.forms
             .get_mut(&form_id)
@@ -119,6 +119,18 @@ impl<'a> FormationRef<'a> {
             self.form.update_tick = tick;
         }
         &self.form.dvt_s
+    }
+
+    pub fn is_bounded(&self) -> bool {
+        self.form.bounded
+    }
+
+    pub fn set_bounded(&mut self) {
+        self.form.bounded = true;
+    }
+
+    pub fn kind(&self) -> &Option<VehicleType> {
+        &self.form.kind
     }
 }
 
@@ -164,6 +176,7 @@ struct Formation {
     vehicles: Vec<i64>,
     bbox: Option<Rect>,
     update_tick: i32,
+    bounded: bool,
     // derivatives sum
     dvt_s: Derivatives,
 }
@@ -181,6 +194,7 @@ impl Formation {
             vehicles: Vec::new(),
             bbox: None,
             update_tick: tick,
+            bounded: false,
             dvt_s: Derivatives::new(),
         }
     }

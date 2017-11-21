@@ -9,6 +9,8 @@ mod derivatives;
 mod formation;
 #[path = "instinct.rs"]
 mod instinct;
+#[path = "progamer.rs"]
+mod progamer;
 #[path = "tactic.rs"]
 mod tactic;
 #[path = "rect.rs"]
@@ -18,12 +20,14 @@ mod side;
 
 use self::side::Side;
 use self::formation::Formations;
+use self::progamer::Progamer;
 use self::tactic::Tactic;
 
 pub struct MyStrategy {
     allies: Formations,
     enemies: Formations,
     tactic: Tactic,
+    progamer: Progamer,
     rng: Option<XorShiftRng>,
 }
 
@@ -33,6 +37,7 @@ impl Default for MyStrategy {
             allies: Formations::new(Side::Allies),
             enemies: Formations::new(Side::Enemies),
             tactic: Tactic::new(),
+            progamer: Progamer::new(),
             rng: None,
         }
     }
@@ -40,8 +45,12 @@ impl Default for MyStrategy {
 
 impl Strategy for MyStrategy {
     fn act(&mut self, me: &Player, world: &World, game: &Game, action: &mut Action) {
+        if world.tick_index == 0 {
+            debug!("{:?}", game);
+        }
         self.update_formations(me, world);
         self.run_instinct(world, game);
+        self.progamer.maintain_apm(me, &mut self.allies, &mut self.tactic, action);
     }
 }
 
@@ -76,6 +85,7 @@ impl MyStrategy {
             let seed = [a, b, c, d];
             SeedableRng::from_seed(seed)
         });
+        self.tactic.clear();
         let mut forms_iter = self.allies.iter();
         while let Some(form) = forms_iter.next() {
             instinct::run(form, world, &mut self.tactic, rng);

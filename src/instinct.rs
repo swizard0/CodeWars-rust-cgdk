@@ -22,7 +22,7 @@ fn scout<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, 
         form_id: form.id,
         desire: Desire::ScoutTo { x, y, sq_dist: sq_dist(fx, fy, x, y), },
     };
-    debug!("scout for formation {} on {:?} -> {:?}", form.id, bbox, plan);
+    debug!("scout for formation {} of {:?} -> {:?}", form.id, form.kind(), plan);
     tactic.plan(plan);
 }
 
