@@ -1,4 +1,6 @@
-use model::{ActionType, Game, Action, Player, World};
+use rand::{SeedableRng, XorShiftRng};
+
+use model::{Game, Action, Player, World};
 use strategy::Strategy;
 
 #[path = "derivatives.rs"]
@@ -7,6 +9,8 @@ mod derivatives;
 mod formation;
 #[path = "instinct.rs"]
 mod instinct;
+#[path = "tactic.rs"]
+mod tactic;
 #[path = "rect.rs"]
 mod rect;
 #[path = "side.rs"]
@@ -14,10 +18,13 @@ mod side;
 
 use self::side::Side;
 use self::formation::Formations;
+use self::tactic::Tactic;
 
 pub struct MyStrategy {
     allies: Formations,
     enemies: Formations,
+    tactic: Tactic,
+    rng: Option<XorShiftRng>,
 }
 
 impl Default for MyStrategy {
@@ -25,26 +32,16 @@ impl Default for MyStrategy {
         MyStrategy {
             allies: Formations::new(Side::Allies),
             enemies: Formations::new(Side::Enemies),
+            tactic: Tactic::new(),
+            rng: None,
         }
     }
 }
 
 impl Strategy for MyStrategy {
-    fn act(&mut self, me: &Player, world: &World, _game: &Game, action: &mut Action) {
+    fn act(&mut self, me: &Player, world: &World, game: &Game, action: &mut Action) {
         self.update_formations(me, world);
-
-        if world.tick_index == 0 {
-            action.action = Some(ActionType::ClearAndSelect);
-            action.right = world.width;
-            action.bottom = world.height;
-        } else if world.tick_index == 1 {
-            action.action = Some(ActionType::Move);
-            action.x = world.width;
-            action.y = world.height;
-        } else if world.tick_index % 128 == 0 {
-            debug!("tick%128 = {}", world.tick_index);
-            self.run_instinct(world);
-        }
+        self.run_instinct(world, game);
     }
 }
 
@@ -70,10 +67,18 @@ impl MyStrategy {
         }
     }
 
-    fn run_instinct(&mut self, world: &World) {
+    fn run_instinct(&mut self, world: &World, game: &Game) {
+        let rng = self.rng.get_or_insert_with(|| {
+            let a = (game.random_seed & 0xFFFFFFFF) as u32;
+            let b = ((game.random_seed >> 32) & 0xFFFFFFFF) as u32;
+            let c = a ^ b;
+            let d = 0x113BA7BB;
+            let seed = [a, b, c, d];
+            SeedableRng::from_seed(seed)
+        });
         let mut forms_iter = self.allies.iter();
         while let Some(form) = forms_iter.next() {
-            instinct::run(form, world);
+            instinct::run(form, world, &mut self.tactic, rng);
         }
     }
 }
