@@ -47,6 +47,7 @@ impl Strategy for MyStrategy {
     fn act(&mut self, me: &Player, world: &World, game: &Game, action: &mut Action) {
         if world.tick_index == 0 {
             debug!("{:?}", game);
+            debug!("world is {} x {}", world.width, world.height);
         }
         self.update_formations(me, world);
         self.run_instinct(world, game);
