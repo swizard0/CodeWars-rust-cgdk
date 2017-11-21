@@ -16,16 +16,15 @@ fn scout<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, 
     let x = rng.gen_range(0., world.width);
     let y = rng.gen_range(0., world.height);
     let bbox = form.bounding_box().clone();
-    let fx = (bbox.right - bbox.left) / 2.;
-    let fy = (bbox.bottom - bbox.top) / 2.;
+    let fx = (bbox.left + bbox.right) / 2.;
+    let fy = (bbox.top + bbox.bottom) / 2.;
     let plan = Plan {
         form_id: form.id,
-        desire: Desire::ScoutTo { x, y, sq_dist: sq_dist(fx, fy, x, y), },
+        desire: Desire::ScoutTo { fx, fy, x, y, sq_dist: sq_dist(fx, fy, x, y), },
     };
     debug!("scout for formation {} of {:?} -> {:?}", form.id, form.kind(), plan);
     tactic.plan(plan);
 }
-
 
 fn sq_dist(fx: f64, fy: f64, x: f64, y: f64) -> f64 {
     ((x - fx) * (x - fx)) + ((y - fy) * (y - fy))

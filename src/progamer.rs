@@ -26,23 +26,23 @@ impl Progamer {
                     if form.is_bounded() {
                         // case A: formation is selected and bounded -- just continue with the plan
                         match current_plan.desire {
-                            Desire::ScoutTo { x, y, .. } => {
+                            Desire::ScoutTo { fx, fy, x, y, .. } => {
                                 debug!("scout formation {} of {:?} aiming ({}, {})", form.id, form.kind(), x, y);
                                 action.action = Some(ActionType::Move);
-                                action.x = x;
-                                action.y = y;
+                                action.x = x - fx;
+                                action.y = y - fy;
                             },
-                            Desire::Attack { x, y, .. } => {
+                            Desire::Attack { fx, fy, x, y, .. } => {
                                 debug!("attack formation {} of {:?} aiming ({}, {})", form.id, form.kind(), x, y);
                                 action.action = Some(ActionType::Move);
-                                action.x = x;
-                                action.y = y;
+                                action.x = x - fx;
+                                action.y = y - fy;
                             },
-                            Desire::Escape { x, y, .. } => {
+                            Desire::Escape { fx, fy, x, y, .. } => {
                                 debug!("escape formation {} of {:?} aiming ({}, {})", form.id, form.kind(), x, y);
                                 action.action = Some(ActionType::Move);
-                                action.x = x;
-                                action.y = y;
+                                action.x = x - fx;
+                                action.y = y - fy;
                             },
                             Desire::FormationSplit { .. } =>
                                 unimplemented!(),
@@ -64,6 +64,7 @@ impl Progamer {
                     } else {
                         // case C: formation is not selected and a has not been bound as well
                         let form_id = form.id;
+                        action.vehicle_type = form.kind().clone();
                         let bbox = form.bounding_box();
                         debug!("selecting unbound formation {} on {:?}", form_id, bbox);
                         action.action = Some(ActionType::ClearAndSelect);

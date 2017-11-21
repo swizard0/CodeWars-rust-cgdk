@@ -10,9 +10,9 @@ pub struct Plan {
 
 #[derive(PartialEq, Debug)]
 pub enum Desire {
-    ScoutTo { x: f64, y: f64, sq_dist: f64, },
-    Attack { x: f64, y: f64, sq_dist: f64, },
-    Escape { x: f64, y: f64, danger_coeff: f64, },
+    ScoutTo { fx: f64, fy: f64, x: f64, y: f64, sq_dist: f64, },
+    Attack { fx: f64, fy: f64, x: f64, y: f64, sq_dist: f64, },
+    Escape { fx: f64, fy: f64, x: f64, y: f64, danger_coeff: f64, },
     FormationSplit { group_size: usize, },
 }
 
