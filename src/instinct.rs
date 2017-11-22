@@ -67,7 +67,11 @@ fn scout<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, 
     let fy = (bbox.top + bbox.bottom) / 2.;
     tactic.plan(Plan {
         form_id: form.id,
-        desire: Desire::ScoutTo { fx, fy, x, y, sq_dist: sq_dist(fx, fy, x, y), },
+        desire: Desire::ScoutTo {
+            fx, fy, x, y,
+            kind: form.kind().clone(),
+            sq_dist: sq_dist(fx, fy, x, y),
+        },
     });
 }
 

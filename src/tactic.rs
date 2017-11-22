@@ -1,3 +1,4 @@
+use model::VehicleType;
 use super::formation::FormationId;
 
 #[derive(PartialEq, Debug)]
@@ -8,7 +9,7 @@ pub struct Plan {
 
 #[derive(PartialEq, Debug)]
 pub enum Desire {
-    ScoutTo { fx: f64, fy: f64, x: f64, y: f64, sq_dist: f64, },
+    ScoutTo { fx: f64, fy: f64, x: f64, y: f64, kind: Option<VehicleType>, sq_dist: f64, },
     Attack { fx: f64, fy: f64, x: f64, y: f64, sq_dist: f64, },
     Escape { fx: f64, fy: f64, x: f64, y: f64, danger_coeff: f64, },
     FormationSplit { group_size: usize, },
@@ -51,32 +52,38 @@ impl Ord for Plan {
     fn cmp(&self, other: &Plan) -> Ordering {
         match (&self.desire, &other.desire) {
             (&Desire::Escape { danger_coeff: k_a, .. }, &Desire::Escape { danger_coeff: k_b, .. }) =>
-                if k_a > k_b {
-                    Ordering::Greater
-                } else if k_a < k_b {
-                    Ordering::Less
-                } else {
-                    Ordering::Equal
-                },
+                k_b.partial_cmp(&k_a).unwrap(),
             (&Desire::Escape { .. }, _) =>
                 Ordering::Greater,
             (&Desire::Attack { sq_dist: d_a, .. }, &Desire::Attack { sq_dist: d_b, .. }) =>
-                if d_a > d_b {
-                    Ordering::Greater
-                } else if d_a < d_b {
-                    Ordering::Less
-                } else {
-                    Ordering::Equal
-                },
+                d_b.partial_cmp(&d_a).unwrap(),
             (&Desire::Attack { .. }, _) =>
                 Ordering::Greater,
-            (&Desire::ScoutTo { sq_dist: d_a, .. }, &Desire::ScoutTo { sq_dist: d_b, .. }) =>
-                if d_a > d_b {
-                    Ordering::Greater
-                } else if d_a < d_b {
-                    Ordering::Less
-                } else {
-                    Ordering::Equal
+            (&Desire::ScoutTo { kind: k_a, sq_dist: d_a, .. }, &Desire::ScoutTo { kind: k_b, sq_dist: d_b, .. }) =>
+                match (k_a, k_b) {
+                    // best for scouting: fighter
+                    (Some(VehicleType::Fighter), Some(VehicleType::Fighter)) =>
+                        d_b.partial_cmp(&d_a).unwrap(),
+                    (Some(VehicleType::Fighter), Some(..)) =>
+                        Ordering::Greater,
+                    // ok for scouting: helicopter
+                    (Some(VehicleType::Helicopter), Some(VehicleType::Helicopter)) =>
+                        d_b.partial_cmp(&d_a).unwrap(),
+                    (Some(VehicleType::Helicopter), Some(..)) =>
+                        Ordering::Greater,
+                    // not very good for scouting: ifv
+                    (Some(VehicleType::Ifv), Some(VehicleType::Ifv)) =>
+                        d_b.partial_cmp(&d_a).unwrap(),
+                    (Some(VehicleType::Ifv), Some(..)) =>
+                        Ordering::Greater,
+                    // bad for scouting: arrv
+                    (Some(VehicleType::Arrv), Some(VehicleType::Arrv)) =>
+                        d_b.partial_cmp(&d_a).unwrap(),
+                    (Some(VehicleType::Arrv), Some(..)) =>
+                        Ordering::Greater,
+                    // everything else is really bad for scouting
+                    _ =>
+                        d_b.partial_cmp(&d_a).unwrap(),
                 },
             (&Desire::ScoutTo { .. }, _) =>
                 Ordering::Greater,
