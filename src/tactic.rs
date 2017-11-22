@@ -1,5 +1,3 @@
-use std::collections::BinaryHeap;
-
 use super::formation::FormationId;
 
 #[derive(PartialEq, Debug)]
@@ -17,26 +15,31 @@ pub enum Desire {
 }
 
 pub struct Tactic {
-    queue: BinaryHeap<Plan>,
+    most_urgent: Option<Plan>,
 }
 
 impl Tactic {
     pub fn new() -> Tactic {
         Tactic {
-            queue: BinaryHeap::new(),
+            most_urgent: None,
         }
     }
 
     pub fn plan(&mut self, plan: Plan) {
-        self.queue.push(plan);
+        debug!("new plan incoming: {:?}", plan);
+        self.most_urgent = Some(if let Some(current) = self.most_urgent.take() {
+            ::std::cmp::max(current, plan)
+        } else {
+            plan
+        });
     }
 
     pub fn most_urgent(&mut self) -> Option<Plan> {
-        self.queue.pop()
+        self.most_urgent.take()
     }
 
     pub fn clear(&mut self) {
-        self.queue.clear();
+        self.most_urgent = None;
     }
 }
 

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use model::{Vehicle, VehicleUpdate, VehicleType};
 use super::derivatives::Derivatives;
+use super::tactic::Plan;
 use super::rect::Rect;
 use super::side::Side;
 
@@ -121,16 +122,16 @@ impl<'a> FormationRef<'a> {
         &self.form.dvt_s
     }
 
-    pub fn is_bounded(&self) -> bool {
-        self.form.bounded
-    }
-
-    pub fn set_bounded(&mut self) {
-        self.form.bounded = true;
+    pub fn bound(&mut self) -> &mut bool {
+        &mut self.form.bound
     }
 
     pub fn kind(&self) -> &Option<VehicleType> {
         &self.form.kind
+    }
+
+    pub fn current_plan(&mut self) -> &mut Option<Plan> {
+        &mut self.form.current_plan
     }
 }
 
@@ -176,8 +177,8 @@ struct Formation {
     vehicles: Vec<i64>,
     bbox: Option<Rect>,
     update_tick: i32,
-    bounded: bool,
-    // derivatives sum
+    bound: bool,
+    current_plan: Option<Plan>,
     dvt_s: Derivatives,
 }
 
@@ -194,7 +195,8 @@ impl Formation {
             vehicles: Vec::new(),
             bbox: None,
             update_tick: tick,
-            bounded: false,
+            bound: false,
+            current_plan: None,
             dvt_s: Derivatives::new(),
         }
     }

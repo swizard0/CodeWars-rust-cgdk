@@ -1,6 +1,6 @@
 [package]
 name = "code_wars_rust_cgdk"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["swizard <me@swizard.info>", "elsid <elsid.mail@gmail.com>"]
 
 [dependencies]
