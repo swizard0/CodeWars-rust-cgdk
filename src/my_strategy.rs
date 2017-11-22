@@ -3,6 +3,8 @@ use rand::{SeedableRng, XorShiftRng};
 use model::{Game, Action, Player, World};
 use strategy::Strategy;
 
+#[path = "consts.rs"]
+mod consts;
 #[path = "derivatives.rs"]
 mod derivatives;
 #[path = "formation.rs"]

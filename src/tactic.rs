@@ -10,6 +10,7 @@ pub struct Plan {
 #[derive(PartialEq, Debug)]
 pub enum Desire {
     ScoutTo { fx: f64, fy: f64, x: f64, y: f64, kind: Option<VehicleType>, sq_dist: f64, },
+    Compact { fx: f64, fy: f64, kind: Option<VehicleType>, density: f64, },
     Attack { fx: f64, fy: f64, x: f64, y: f64, sq_dist: f64, },
     Escape { fx: f64, fy: f64, x: f64, y: f64, danger_coeff: f64, },
     FormationSplit { group_size: usize, },
@@ -55,53 +56,73 @@ impl Ord for Plan {
                 k_b.partial_cmp(&k_a).unwrap(),
             (&Desire::Escape { .. }, _) =>
                 Ordering::Greater,
+            (_, &Desire::Escape { .. }) =>
+                Ordering::Less,
+
             (&Desire::Attack { sq_dist: d_a, .. }, &Desire::Attack { sq_dist: d_b, .. }) =>
                 d_b.partial_cmp(&d_a).unwrap(),
             (&Desire::Attack { .. }, _) =>
                 Ordering::Greater,
-            (&Desire::ScoutTo { kind: k_a, sq_dist: d_a, .. }, &Desire::ScoutTo { kind: k_b, sq_dist: d_b, .. }) =>
-                match (k_a, k_b) {
-                    // best for scouting: fighter
-                    (Some(VehicleType::Fighter), Some(VehicleType::Fighter)) =>
-                        d_b.partial_cmp(&d_a).unwrap(),
-                    (Some(VehicleType::Fighter), Some(..)) =>
-                        Ordering::Greater,
-                    (Some(..), Some(VehicleType::Fighter)) =>
-                        Ordering::Less,
-                    // ok for scouting: helicopter
-                    (Some(VehicleType::Helicopter), Some(VehicleType::Helicopter)) =>
-                        d_b.partial_cmp(&d_a).unwrap(),
-                    (Some(VehicleType::Helicopter), Some(..)) =>
-                        Ordering::Greater,
-                    (Some(..), Some(VehicleType::Helicopter)) =>
-                        Ordering::Less,
-                    // not very good for scouting: ifv
-                    (Some(VehicleType::Ifv), Some(VehicleType::Ifv)) =>
-                        d_b.partial_cmp(&d_a).unwrap(),
-                    (Some(VehicleType::Ifv), Some(..)) =>
-                        Ordering::Greater,
-                    (Some(..), Some(VehicleType::Ifv)) =>
-                        Ordering::Less,
-                    // bad for scouting: arrv
-                    (Some(VehicleType::Arrv), Some(VehicleType::Arrv)) =>
-                        d_b.partial_cmp(&d_a).unwrap(),
-                    (Some(VehicleType::Arrv), Some(..)) =>
-                        Ordering::Greater,
-                    (Some(..), Some(VehicleType::Arrv)) =>
-                        Ordering::Less,
-                    // everything else is really bad for scouting
-                    _ =>
-                        d_b.partial_cmp(&d_a).unwrap(),
-                },
+            (_, &Desire::Attack { .. }) =>
+                Ordering::Less,
+
+            (&Desire::ScoutTo { kind: ref k_a, sq_dist: d_a, .. }, &Desire::ScoutTo { kind: ref k_b, sq_dist: d_b, .. }) =>
+                compare_vehicle_types(k_a, k_b).then_with(|| d_b.partial_cmp(&d_a).unwrap()),
             (&Desire::ScoutTo { .. }, _) =>
                 Ordering::Greater,
+            (_, &Desire::ScoutTo { .. }) =>
+                Ordering::Less,
+
+            (&Desire::Compact { kind: ref k_a, density: d_a, .. }, &Desire::Compact { kind: ref k_b, density: d_b, .. }) =>
+                d_b.partial_cmp(&d_a).unwrap().then_with(|| compare_vehicle_types(k_a, k_b)),
+            (&Desire::Compact { .. }, _) =>
+                Ordering::Greater,
+            (_, &Desire::Compact { .. }) =>
+                Ordering::Less,
+
             (&Desire::FormationSplit { group_size: s_a, }, &Desire::FormationSplit { group_size: s_b, }) =>
-                s_a.cmp(&s_b),
-            (&Desire::FormationSplit { .. }, &Desire::FormationSplit { .. }) =>
-                Ordering::Equal,
+                s_b.cmp(&s_a),
             (&Desire::FormationSplit { .. }, _) =>
+                Ordering::Greater,
+            (_, &Desire::FormationSplit { .. }) =>
                 Ordering::Less,
         }
+    }
+}
+
+fn compare_vehicle_types(k_a: &Option<VehicleType>, k_b: &Option<VehicleType>) -> Ordering {
+    match (k_a, k_b) {
+        // best for fast movements: fighter
+        (&Some(VehicleType::Fighter), &Some(VehicleType::Fighter)) =>
+            Ordering::Equal,
+        (&Some(VehicleType::Fighter), &Some(..)) =>
+            Ordering::Greater,
+        (&Some(..), &Some(VehicleType::Fighter)) =>
+            Ordering::Less,
+        // ok for fast movements: helicopter
+        (&Some(VehicleType::Helicopter), &Some(VehicleType::Helicopter)) =>
+            Ordering::Equal,
+        (&Some(VehicleType::Helicopter), &Some(..)) =>
+            Ordering::Greater,
+        (&Some(..), &Some(VehicleType::Helicopter)) =>
+            Ordering::Less,
+        // not very good for fast movements: ifv
+        (&Some(VehicleType::Ifv), &Some(VehicleType::Ifv)) =>
+            Ordering::Equal,
+        (&Some(VehicleType::Ifv), &Some(..)) =>
+            Ordering::Greater,
+        (&Some(..), &Some(VehicleType::Ifv)) =>
+            Ordering::Less,
+        // bad for fast movements: arrv
+        (&Some(VehicleType::Arrv), &Some(VehicleType::Arrv)) =>
+            Ordering::Equal,
+        (&Some(VehicleType::Arrv), &Some(..)) =>
+            Ordering::Greater,
+        (&Some(..), &Some(VehicleType::Arrv)) =>
+            Ordering::Less,
+        // everything else is really bad for fast movements
+        _ =>
+            Ordering::Equal,
     }
 }
 

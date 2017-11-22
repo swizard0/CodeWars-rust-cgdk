@@ -1,6 +1,7 @@
 use rand::Rng;
 
 use model::World;
+use super::consts;
 use super::formation::FormationRef;
 use super::tactic::{Tactic, Plan, Desire};
 
@@ -23,28 +24,31 @@ pub fn run<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic
 
     enum Reaction {
         KeepOn,
-        GoCurious,
+        ComeUpWithSomething,
     }
 
     let reaction = match (form.current_plan(), trigger) {
         // nothing annoying around and we don't have a plan: let's do something
         (&mut None, Trigger::None) =>
-            Reaction::GoCurious,
+            Reaction::ComeUpWithSomething,
         // nothing annoying around, keep following the plan
         (&mut Some(..), Trigger::None) =>
             Reaction::KeepOn,
         // we are not moving and also don't have a plan: let's do something
         (&mut None, Trigger::Idle) =>
-            Reaction::GoCurious,
+            Reaction::ComeUpWithSomething,
         // we are currently scouting and eventually stopped: let's scout another way
         (&mut Some(Plan { desire: Desire::ScoutTo { .. }, .. }), Trigger::Idle) =>
-            Reaction::GoCurious,
+            Reaction::ComeUpWithSomething,
+        // we are currently making formation more compact and eventually stopped: let's do something
+        (&mut Some(Plan { desire: Desire::Compact { .. }, .. }), Trigger::Idle) =>
+            Reaction::ComeUpWithSomething,
         // we are currently attacking and also not moving: keep attacking then
         (&mut Some(Plan { desire: Desire::Attack { .. }, .. }), Trigger::Idle) =>
-            Reaction::KeepOn,
+            Reaction::ComeUpWithSomething,
         // we are currently escaping and eventually stopped: looks like we are safe, so go ahead do something
         (&mut Some(Plan { desire: Desire::Escape { .. }, ..}), Trigger::Idle) =>
-            Reaction::GoCurious,
+            Reaction::ComeUpWithSomething,
 
         // it is supposed we cannot have this scenario
         (&mut Some(Plan { desire: Desire::FormationSplit { .. }, ..}), _) =>
@@ -54,23 +58,38 @@ pub fn run<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic
     match reaction {
         Reaction::KeepOn =>
             (),
-        Reaction::GoCurious =>
-            scout(form, world, tactic, rng),
+        Reaction::ComeUpWithSomething =>
+            scout_etc(form, world, tactic, rng),
     }
 }
 
-fn scout<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, rng: &mut R) where R: Rng {
+fn scout_etc<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, rng: &mut R) where R: Rng {
     let x = rng.gen_range(0., world.width);
     let y = rng.gen_range(0., world.height);
     let bbox = form.bounding_box().clone();
     let fx = bbox.cx;
     let fy = bbox.cy;
+    let do_compact = if let &mut Some(Plan { desire: Desire::Compact { .. }, .. }) = form.current_plan() {
+        false
+    } else if bbox.density < consts::COMPACT_DENSITY {
+        true
+    } else {
+        false
+    };
     tactic.plan(Plan {
         form_id: form.id,
-        desire: Desire::ScoutTo {
-            fx, fy, x, y,
-            kind: form.kind().clone(),
-            sq_dist: sq_dist(fx, fy, x, y),
+        desire: if do_compact {
+            Desire::Compact {
+                fx, fy,
+                kind: form.kind().clone(),
+                density: bbox.density,
+            }
+        } else {
+            Desire::ScoutTo {
+                fx, fy, x, y,
+                kind: form.kind().clone(),
+                sq_dist: sq_dist(fx, fy, x, y),
+            }
         },
     });
 }

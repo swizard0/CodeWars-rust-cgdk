@@ -52,6 +52,13 @@ impl Progamer {
                         action.x = x - fx;
                         action.y = y - fy;
                     },
+                    Some(Plan { desire: Desire::Compact { fx, fy, density, .. }, .. }) => {
+                        debug!("compact formation {} of {:?} density {}", form.id, form.kind(), density);
+                        action.action = Some(ActionType::Scale);
+                        action.x = fx;
+                        action.y = fy;
+                        action.factor = 0.1;
+                    },
                     Some(Plan { desire: Desire::Attack { fx, fy, x, y, .. }, .. }) => {
                         debug!("attack formation {} of {:?} aiming ({}, {})", form.id, form.kind(), x, y);
                         action.action = Some(ActionType::Move);
