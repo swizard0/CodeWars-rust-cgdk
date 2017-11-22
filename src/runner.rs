@@ -1,8 +1,4 @@
 extern crate core;
-extern crate rand;
-extern crate env_logger;
-#[macro_use]
-extern crate log;
 
 mod model;
 mod my_strategy;
@@ -23,12 +19,6 @@ fn main() {
     use std::io::{stderr, Write};
     use std::process::exit;
     use my_strategy::MyStrategy;
-
-    // env_logger::init().unwrap();
-    env_logger::LogBuilder::new()
-        .filter(Some("code_wars"), log::LogLevelFilter::Debug)
-        .init()
-        .unwrap();
 
     let args = parse_args();
 

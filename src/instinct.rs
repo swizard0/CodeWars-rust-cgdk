@@ -1,4 +1,4 @@
-use rand::Rng;
+use super::rand::Rng;
 
 use model::World;
 use super::consts;

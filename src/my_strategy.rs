@@ -1,7 +1,13 @@
-use rand::{SeedableRng, XorShiftRng};
-
 use model::{Game, Action, Player, World};
 use strategy::Strategy;
+
+#[path = "crate_log.rs"]
+#[macro_use]
+mod log;
+#[path = "crate_env_logger.rs"]
+mod env_logger;
+#[path = "crate_rand.rs"]
+mod rand;
 
 #[path = "consts.rs"]
 mod consts;
@@ -19,6 +25,8 @@ mod tactic;
 mod rect;
 #[path = "side.rs"]
 mod side;
+
+use self::rand::{SeedableRng, XorShiftRng};
 
 use self::side::Side;
 use self::formation::Formations;
@@ -48,6 +56,12 @@ impl Default for MyStrategy {
 impl Strategy for MyStrategy {
     fn act(&mut self, me: &Player, world: &World, game: &Game, action: &mut Action) {
         if world.tick_index == 0 {
+            // env_logger::init().unwrap();
+            self::env_logger::LogBuilder::new()
+                .filter(Some("code_wars"), self::log::LogLevelFilter::Debug)
+                .init()
+                .unwrap();
+
             debug!("{:?}", game);
             debug!("world is {} x {}", world.width, world.height);
         }
