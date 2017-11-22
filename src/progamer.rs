@@ -20,6 +20,21 @@ impl Progamer {
         if me.remaining_action_cooldown_ticks > 0 {
             return;
         }
+        let mut delayed_split = None;
+        self.gosu_click(formations, tactic, action, &mut delayed_split);
+
+        if let Some(form_id) = delayed_split {
+            formations.split(form_id);
+        }
+    }
+
+    pub fn gosu_click(
+        &mut self,
+        formations: &mut Formations,
+        tactic: &mut Tactic,
+        action: &mut Action,
+        delayed_split: &mut Option<FormationId>)
+    {
         let mut form =
             if let Some(form_id) = self.current.take() {
                 if let Some(mut form) = formations.get_by_id(form_id) {
@@ -71,8 +86,12 @@ impl Progamer {
                         action.x = x - fx;
                         action.y = y - fy;
                     },
-                    Some(Plan { desire: Desire::FormationSplit { .. }, .. }) =>
-                        unimplemented!(),
+                    Some(Plan { desire: Desire::FormationSplit { group_size }, .. }) => {
+                        debug!("splitting formation {} of {} vehicles", form.id, group_size);
+                        action.action = Some(ActionType::Dismiss);
+                        action.group = form.id;
+                        *delayed_split = Some(form.id);
+                    },
                     None =>
                         unreachable!(),
                 }

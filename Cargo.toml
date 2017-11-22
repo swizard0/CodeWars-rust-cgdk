@@ -1,6 +1,6 @@
 [package]
 name = "code_wars_rust_cgdk"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["swizard <me@swizard.info>"]
 
 [[bin]]

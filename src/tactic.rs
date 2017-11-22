@@ -83,10 +83,6 @@ impl Ord for Plan {
 
             (&Desire::FormationSplit { group_size: s_a, }, &Desire::FormationSplit { group_size: s_b, }) =>
                 s_b.cmp(&s_a),
-            (&Desire::FormationSplit { .. }, _) =>
-                Ordering::Greater,
-            (_, &Desire::FormationSplit { .. }) =>
-                Ordering::Less,
         }
     }
 }

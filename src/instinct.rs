@@ -30,6 +30,7 @@ pub fn run<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic
         KeepOn,
         GoCurious,
         CloseRanks,
+        Scatter,
         RunAway,
     }
 
@@ -55,6 +56,9 @@ pub fn run<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic
         // we are currently making formation more compact and eventually stopped: let's continue with something useful
         (&mut Some(Plan { desire: Desire::Compact { .. }, .. }), Trigger::Idle) =>
             Reaction::GoCurious,
+        // we are currently scattering and eventually stopped: let's continue with something useful
+        (&mut Some(Plan { desire: Desire::FormationSplit { .. }, .. }), Trigger::Idle) =>
+            Reaction::GoCurious,
         // we are currently scouting and eventually stopped: maybe we should make formation more compact
         (&mut Some(Plan { desire: Desire::ScoutTo { .. }, .. }), Trigger::Idle) =>
             Reaction::CloseRanks,
@@ -64,10 +68,6 @@ pub fn run<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic
         // we are currently escaping and eventually stopped: looks like we are safe, so go ahead do something
         (&mut Some(Plan { desire: Desire::Escape { .. }, ..}), Trigger::Idle) =>
             Reaction::CloseRanks,
-
-        // it is supposed we cannot have this scenario
-        (&mut Some(Plan { desire: Desire::FormationSplit { .. }, ..}), _) =>
-            unreachable!(),
     };
 
     // apply some post checks and maybe change reaction
@@ -77,8 +77,12 @@ pub fn run<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic
             Reaction::CloseRanks => if form.bounding_box().density < consts::COMPACT_DENSITY {
                 break;
             } else {
-                reaction = Reaction::GoCurious;
+                reaction = Reaction::Scatter;
             },
+            // ensure that we really need to scatter
+            Reaction::Scatter if form.size() < consts::SPLIT_MAX_THRESHOLD =>
+                reaction = Reaction::GoCurious,
+            // keep on with current reaction
             _ =>
                 break,
         }
@@ -91,6 +95,8 @@ pub fn run<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic
             scout(form, world, tactic, rng),
         Reaction::CloseRanks =>
             compact(form, world, tactic),
+        Reaction::Scatter =>
+            scatter(form, world, tactic),
         Reaction::RunAway =>
             run_away(form, world, tactic, rng),
     }
@@ -127,6 +133,16 @@ fn compact<'a>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic) {
         desire: Desire::Compact {
             fx, fy, density,
             kind: form.kind().clone(),
+        },
+    });
+}
+
+fn scatter<'a>(form: FormationRef<'a>, world: &World, tactic: &mut Tactic) {
+    tactic.plan(Plan {
+        form_id: form.id,
+        tick: world.tick_index,
+        desire: Desire::FormationSplit {
+            group_size: form.size(),
         },
     });
 }

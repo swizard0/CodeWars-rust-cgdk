@@ -82,6 +82,17 @@ impl Formations {
             .get_mut(&form_id)
             .map(move |form| FormationRef { id: form_id, form, by_vehicle_id, })
     }
+
+    pub fn split(&mut self, form_id: FormationId) {
+        if let Some(form) = self.forms.remove(&form_id) {
+            let ((id_a, form_a), (id_b, form_b)) =
+                form.split(&mut self.counter, &mut self.by_vehicle_id);
+            self.forms.insert(id_a, form_a);
+            self.forms.insert(id_b, form_b);
+        } else {
+            panic!("cannot split formation with id = {}: no such formation", form_id)
+        }
+    }
 }
 
 pub struct FormationsIter<'a> {
@@ -110,6 +121,10 @@ pub struct FormationRef<'a> {
 }
 
 impl<'a> FormationRef<'a> {
+    pub fn size(&self) -> usize {
+        self.form.vehicles.len()
+    }
+
     pub fn bounding_box(&mut self) -> &Rect {
         self.form.bounding_box(self.by_vehicle_id)
     }
@@ -257,5 +272,90 @@ impl Formation {
                 .map(|unit| (unit.vehicle.x, unit.vehicle.y, unit.vehicle.radius));
             Rect::from_iter(iter)
         })
+    }
+
+    fn split(mut self, counter: &mut FormationId, by_vehicle_id: &mut VehiclesDict) ->
+        ((FormationId, Formation), (FormationId, Formation))
+    {
+        let bbox = self.bounding_box(by_vehicle_id).clone();
+        let width = bbox.right - bbox.left;
+        let height = bbox.bottom - bbox.top;
+        let (rect_a, rect_b) = if width >= height {
+            (Rect {
+                left: bbox.left,
+                top: bbox.top,
+                right: (bbox.left + bbox.right) / 2.,
+                bottom: bbox.bottom,
+                ..Default::default()
+            },
+             Rect {
+                 left: (bbox.left + bbox.right) / 2.,
+                 top: bbox.top,
+                 right: bbox.right,
+                 bottom: bbox.bottom,
+                 ..Default::default()
+             })
+        } else {
+            (Rect {
+                left: bbox.left,
+                top: bbox.top,
+                right: bbox.right,
+                bottom: (bbox.top + bbox.bottom) / 2.,
+                ..Default::default()
+            },
+             Rect {
+                 left: bbox.left,
+                 top: (bbox.top + bbox.bottom) / 2.,
+                 right: bbox.right,
+                 bottom: bbox.bottom,
+                 ..Default::default()
+             })
+        };
+
+        *counter += 1;
+        let id_a = *counter;
+        *counter += 1;
+        let id_b = *counter;
+
+        let mut vehicles_a = Vec::with_capacity(self.vehicles.len());
+        let mut vehicles_b = Vec::with_capacity(self.vehicles.len());
+        for vehicle_id in self.vehicles {
+            if let Some(unit) = by_vehicle_id.get_mut(&vehicle_id) {
+                if rect_a.inside(unit.vehicle.x, unit.vehicle.y) {
+                    unit.form_id = id_a;
+                    vehicles_a.push(vehicle_id);
+                } else if rect_b.inside(unit.vehicle.x, unit.vehicle.y) {
+                    unit.form_id = id_b;
+                    vehicles_b.push(vehicle_id);
+                } else {
+                    panic!("something wrong: vehicle id = {} not in formation bounding box: {:?}", vehicle_id, bbox);
+                }
+            } else {
+                panic!("something wrong: vehicle id = {} in formation, but no unit in formation dict", vehicle_id);
+            }
+        }
+
+        let form_a = Formation {
+            kind: self.kind.clone(),
+            vehicles: vehicles_a,
+            bbox: None,
+            update_tick: self.update_tick,
+            bound: false,
+            current_plan: None,
+            dvt_s: Derivatives::new(),
+        };
+        let form_b = Formation {
+            kind: self.kind.clone(),
+            vehicles: vehicles_b,
+            bbox: None,
+            update_tick: self.update_tick,
+            bound: false,
+            current_plan: None,
+            dvt_s: Derivatives::new(),
+        };
+
+        debug!("formation on {:?} with {} vehicles splitted by one on {:?} with {} vehicles and second on {:?} with {} vehicles",
+               bbox, form_a.vehicles.len() + form_b.vehicles.len(), rect_a, form_a.vehicles.len(), rect_b, form_b.vehicles.len());
+        ((id_a, form_a), (id_b, form_b))
     }
 }

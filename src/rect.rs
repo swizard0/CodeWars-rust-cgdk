@@ -1,5 +1,5 @@
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Default, Debug)]
 pub struct Rect {
     pub left: f64,
     pub top: f64,
@@ -36,5 +36,9 @@ impl Rect {
         rect.cy = cy_s / total as f64;
         rect.density = area_s / ((rect.right - rect.left) * (rect.bottom - rect.top));
         rect
+    }
+
+    pub fn inside(&self, x: f64, y: f64) -> bool {
+        x >= self.left && x <= self.right && y >= self.top && y <= self.bottom
     }
 }
