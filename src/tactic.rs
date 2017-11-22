@@ -66,21 +66,29 @@ impl Ord for Plan {
                         d_b.partial_cmp(&d_a).unwrap(),
                     (Some(VehicleType::Fighter), Some(..)) =>
                         Ordering::Greater,
+                    (Some(..), Some(VehicleType::Fighter)) =>
+                        Ordering::Less,
                     // ok for scouting: helicopter
                     (Some(VehicleType::Helicopter), Some(VehicleType::Helicopter)) =>
                         d_b.partial_cmp(&d_a).unwrap(),
                     (Some(VehicleType::Helicopter), Some(..)) =>
                         Ordering::Greater,
+                    (Some(..), Some(VehicleType::Helicopter)) =>
+                        Ordering::Less,
                     // not very good for scouting: ifv
                     (Some(VehicleType::Ifv), Some(VehicleType::Ifv)) =>
                         d_b.partial_cmp(&d_a).unwrap(),
                     (Some(VehicleType::Ifv), Some(..)) =>
                         Ordering::Greater,
+                    (Some(..), Some(VehicleType::Ifv)) =>
+                        Ordering::Less,
                     // bad for scouting: arrv
                     (Some(VehicleType::Arrv), Some(VehicleType::Arrv)) =>
                         d_b.partial_cmp(&d_a).unwrap(),
                     (Some(VehicleType::Arrv), Some(..)) =>
                         Ordering::Greater,
+                    (Some(..), Some(VehicleType::Arrv)) =>
+                        Ordering::Less,
                     // everything else is really bad for scouting
                     _ =>
                         d_b.partial_cmp(&d_a).unwrap(),

@@ -63,8 +63,8 @@ fn scout<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, 
     let x = rng.gen_range(0., world.width);
     let y = rng.gen_range(0., world.height);
     let bbox = form.bounding_box().clone();
-    let fx = (bbox.left + bbox.right) / 2.;
-    let fy = (bbox.top + bbox.bottom) / 2.;
+    let fx = bbox.cx;
+    let fy = bbox.cy;
     tactic.plan(Plan {
         form_id: form.id,
         desire: Desire::ScoutTo {
