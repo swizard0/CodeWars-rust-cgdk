@@ -54,21 +54,21 @@ impl Ord for Plan {
     fn cmp(&self, other: &Plan) -> Ordering {
         match (&self.desire, &other.desire) {
             (&Desire::Escape { danger_coeff: k_a, .. }, &Desire::Escape { danger_coeff: k_b, .. }) =>
-                k_b.partial_cmp(&k_a).unwrap(),
+                k_a.partial_cmp(&k_b).unwrap(),
             (&Desire::Escape { .. }, _) =>
                 Ordering::Greater,
             (_, &Desire::Escape { .. }) =>
                 Ordering::Less,
 
             (&Desire::Attack { sq_dist: d_a, .. }, &Desire::Attack { sq_dist: d_b, .. }) =>
-                d_b.partial_cmp(&d_a).unwrap(),
+                d_a.partial_cmp(&d_b).unwrap(),
             (&Desire::Attack { .. }, _) =>
                 Ordering::Greater,
             (_, &Desire::Attack { .. }) =>
                 Ordering::Less,
 
             (&Desire::ScoutTo { kind: ref k_a, sq_dist: d_a, .. }, &Desire::ScoutTo { kind: ref k_b, sq_dist: d_b, .. }) =>
-                compare_vehicle_types(k_a, k_b).then_with(|| d_b.partial_cmp(&d_a).unwrap()),
+                compare_vehicle_types(k_a, k_b).then_with(|| d_a.partial_cmp(&d_b).unwrap()),
             (&Desire::ScoutTo { .. }, _) =>
                 Ordering::Greater,
             (_, &Desire::ScoutTo { .. }) =>
@@ -82,7 +82,7 @@ impl Ord for Plan {
                 Ordering::Less,
 
             (&Desire::FormationSplit { group_size: s_a, }, &Desire::FormationSplit { group_size: s_b, }) =>
-                s_b.cmp(&s_a),
+                s_a.cmp(&s_b),
         }
     }
 }
@@ -126,5 +126,152 @@ fn compare_vehicle_types(k_a: &Option<VehicleType>, k_b: &Option<VehicleType>) -
 impl PartialOrd for Plan {
     fn partial_cmp(&self, other: &Plan) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::cmp::max;
+    use super::{Plan, Desire};
+    use model::VehicleType;
+
+    #[test]
+    fn scout_to() {
+        assert_eq!(max(
+            Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::ScoutTo { fx: 10., fy: 10., x: 20., y: 20., kind: Some(VehicleType::Ifv), sq_dist: 200., },
+            },
+            Plan {
+                form_id: 2, tick: 0,
+                desire: Desire::ScoutTo { fx: 10., fy: 10., x: 15., y: 15., kind: Some(VehicleType::Ifv), sq_dist: 50., },
+            }
+        ).form_id, 1);
+        assert_eq!(max(
+            Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::ScoutTo { fx: 10., fy: 10., x: 20., y: 20., kind: Some(VehicleType::Ifv), sq_dist: 200., },
+            },
+            Plan {
+                form_id: 2, tick: 0,
+                desire: Desire::ScoutTo { fx: 10., fy: 10., x: 15., y: 15., kind: Some(VehicleType::Fighter), sq_dist: 50., },
+            }
+        ).form_id, 2);
+        assert_eq!(max(
+            Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::FormationSplit { group_size: 100, },
+            },
+            Plan {
+                form_id: 2, tick: 0,
+                desire: Desire::ScoutTo { fx: 10., fy: 10., x: 15., y: 15., kind: Some(VehicleType::Fighter), sq_dist: 50., },
+            }
+        ).form_id, 2);
+    }
+
+    #[test]
+    fn compact() {
+        assert_eq!(max(
+            Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::Compact { fx: 10., fy: 10., kind: Some(VehicleType::Ifv), density: 0.4, },
+            },
+            Plan {
+                form_id: 2, tick: 0,
+                desire: Desire::Compact { fx: 10., fy: 10., kind: Some(VehicleType::Ifv), density: 0.01, },
+            }
+        ).form_id, 2);
+        assert_eq!(max(
+            Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::Compact { fx: 10., fy: 10., kind: Some(VehicleType::Fighter), density: 0.01, },
+            },
+            Plan {
+                form_id: 2, tick: 0,
+                desire: Desire::Compact { fx: 10., fy: 10., kind: Some(VehicleType::Ifv), density: 0.01, },
+            }
+        ).form_id, 1);
+        assert_eq!(max(
+            Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::FormationSplit { group_size: 100, },
+            },
+            Plan {
+                form_id: 2, tick: 0,
+                desire: Desire::Compact { fx: 10., fy: 10., kind: Some(VehicleType::Fighter), density: 0.01, },
+            }
+        ).form_id, 2);
+    }
+
+    #[test]
+    fn attack() {
+        assert_eq!(max(
+            Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::Attack { fx: 10., fy: 10., x: 20., y: 20., sq_dist: 200., },
+            },
+            Plan {
+                form_id: 2, tick: 0,
+                desire: Desire::Attack { fx: 10., fy: 10., x: 15., y: 15., sq_dist: 50., },
+            }
+        ).form_id, 1);
+        assert_eq!(max(
+            Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::FormationSplit { group_size: 100, },
+            },
+            Plan {
+                form_id: 2, tick: 0,
+                desire: Desire::Attack { fx: 10., fy: 10., x: 15., y: 15., sq_dist: 50., },
+            }
+        ).form_id, 2);
+    }
+
+    #[test]
+    fn escape() {
+        assert_eq!(max(
+            Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::Escape { fx: 10., fy: 10., x: 20., y: 20., danger_coeff: 200., },
+            },
+            Plan {
+                form_id: 2, tick: 0,
+                desire: Desire::Escape { fx: 10., fy: 10., x: 15., y: 15., danger_coeff: 50., },
+            }
+        ).form_id, 1);
+        assert_eq!(max(
+            Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::FormationSplit { group_size: 100, },
+            },
+            Plan {
+                form_id: 2, tick: 0,
+                desire: Desire::Escape { fx: 10., fy: 10., x: 15., y: 15., danger_coeff: 50., },
+            }
+        ).form_id, 2);
+    }
+
+    #[test]
+    fn split() {
+        assert_eq!(max(
+            Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::FormationSplit { group_size: 100, },
+            },
+            Plan {
+                form_id: 2, tick: 0,
+                desire: Desire::FormationSplit { group_size: 50, },
+            }
+        ).form_id, 1);
+        assert_eq!(max(
+            Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::FormationSplit { group_size: 100, },
+            },
+            Plan {
+                form_id: 2, tick: 0,
+                desire: Desire::Escape { fx: 10., fy: 10., x: 15., y: 15., danger_coeff: 50., },
+            }
+        ).form_id, 2);
     }
 }
