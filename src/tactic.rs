@@ -4,6 +4,7 @@ use super::formation::FormationId;
 #[derive(PartialEq, Debug)]
 pub struct Plan {
     pub form_id: FormationId,
+    pub tick: i32,
     pub desire: Desire,
 }
 

@@ -114,12 +114,13 @@ impl<'a> FormationRef<'a> {
         self.form.bounding_box(self.by_vehicle_id)
     }
 
-    pub fn dvt_sums(&mut self, tick: i32) -> &Derivatives {
+    pub fn dvt_sums(&mut self, tick: i32) -> (&Derivatives, usize) {
         if self.form.update_tick < tick {
             self.form.dvt_s.clear();
             self.form.update_tick = tick;
         }
-        &self.form.dvt_s
+        let form_size = self.form.vehicles.len();
+        (&self.form.dvt_s, form_size)
     }
 
     pub fn bound(&mut self) -> &mut bool {

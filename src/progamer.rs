@@ -65,8 +65,8 @@ impl Progamer {
                         action.x = x - fx;
                         action.y = y - fy;
                     },
-                    Some(Plan { desire: Desire::Escape { fx, fy, x, y, .. }, .. }) => {
-                        debug!("escape formation {} of {:?} aiming ({}, {})", form.id, form.kind(), x, y);
+                    Some(Plan { desire: Desire::Escape { fx, fy, x, y, danger_coeff }, .. }) => {
+                        debug!("escape formation {} of {:?} danger {} aiming ({}, {})", form.id, form.kind(), danger_coeff, x, y);
                         action.action = Some(ActionType::Move);
                         action.x = x - fx;
                         action.y = y - fy;
