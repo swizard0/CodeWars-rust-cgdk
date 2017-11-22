@@ -97,7 +97,8 @@ fn scout_etc<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tact
         tick: world.tick_index,
         desire: if do_compact {
             Desire::Compact {
-                fx, fy,
+                fx: (bbox.left + bbox.right) / 2.,
+                fy: (bbox.top + bbox.bottom) / 2.,
                 kind: form.kind().clone(),
                 density: bbox.density,
             }
