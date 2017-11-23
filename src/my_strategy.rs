@@ -21,6 +21,10 @@ mod instinct;
 mod progamer;
 #[path = "tactic.rs"]
 mod tactic;
+#[path = "atsral.rs"]
+mod atsral;
+#[path = "common.rs"]
+mod common;
 #[path = "rect.rs"]
 mod rect;
 #[path = "side.rs"]
@@ -32,11 +36,13 @@ use self::side::Side;
 use self::formation::Formations;
 use self::progamer::Progamer;
 use self::tactic::Tactic;
+use self::atsral::{Atsral, AtsralForecast};
 
 pub struct MyStrategy {
     allies: Formations,
     enemies: Formations,
     tactic: Tactic,
+    atsral: Atsral,
     progamer: Progamer,
     rng: Option<XorShiftRng>,
 }
@@ -47,6 +53,7 @@ impl Default for MyStrategy {
             allies: Formations::new(Side::Allies),
             enemies: Formations::new(Side::Enemies),
             tactic: Tactic::new(),
+            atsral: Atsral::new(),
             progamer: Progamer::new(),
             rng: None,
         }
@@ -57,6 +64,7 @@ impl Strategy for MyStrategy {
     fn act(&mut self, me: &Player, world: &World, game: &Game, action: &mut Action) {
         if world.tick_index == 0 {
             // env_logger::init().unwrap();
+            #[cfg(debug_assertions)]
             self::env_logger::LogBuilder::new()
                 .filter(Some("code_wars"), self::log::LogLevelFilter::Debug)
                 .init()
@@ -102,10 +110,24 @@ impl MyStrategy {
             let seed = [a, b, c, d];
             SeedableRng::from_seed(seed)
         });
+
         self.tactic.clear();
-        let mut forms_iter = self.allies.iter();
-        while let Some(form) = forms_iter.next() {
-            instinct::run(form, world, &mut self.tactic, rng);
+        loop {
+            {
+                let mut atsral_fc = if self.atsral.is_silent() {
+                    AtsralForecast::Silence(&mut self.atsral)
+                } else {
+                    AtsralForecast::Voices(&mut self.atsral)
+                };
+                let mut forms_iter = self.allies.iter();
+                while let Some(form) = forms_iter.next() {
+                    instinct::run(form, world, game, &mut atsral_fc, &mut self.tactic, rng);
+                }
+            }
+            self.atsral.analyze(&mut self.enemies, game);
+            if self.atsral.is_silent() {
+                break;
+            }
         }
     }
 }
