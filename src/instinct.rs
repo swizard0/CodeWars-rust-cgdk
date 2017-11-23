@@ -169,6 +169,9 @@ pub fn basic_insticts<'a, R>(mut form: FormationRef<'a>, world: &World, atsral: 
         // we are under attack while running away: keep running
         (&mut Some(Plan { desire: Desire::Escape { .. }, .. }), Trigger::Hurts) =>
             Reaction::KeepOn,
+        // we are under attack while attack ourselves: ignore the pain
+        (&mut Some(Plan { desire: Desire::Attack { .. }, .. }), Trigger::Hurts) =>
+            Reaction::KeepOn,
         // we are under attack while doing something else: immediately escape
         (&mut Some(..), Trigger::Hurts) =>
             Reaction::RunAway,
