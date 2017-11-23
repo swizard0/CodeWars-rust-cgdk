@@ -70,7 +70,6 @@ pub fn run<'a, R>(mut form: FormationRef<'a>, world: &World, game: &Game, atsral
 fn listen_to_atsral<'a>(form: &mut FormationRef<'a>, game: &Game, atsral: &mut Atsral) -> AtsralProclaims {
     let mut best_helper = None;
     for cry in atsral.inbox(form.id) {
-        debug!("formation {} of {:?} hears the {:?}", form.id, form.kind(), cry);
         match (cry, &*form.current_plan()) {
             // ignore cries from myself
             (Cry::ImUnderAttack { form_id, .. }, ..) if form_id == form.id =>
@@ -105,7 +104,10 @@ fn listen_to_atsral<'a>(form: &mut FormationRef<'a>, game: &Game, atsral: &mut A
                         false
                     }
                 }).unwrap_or(true) {
-                    best_helper = Some((dist_ratio, real_damage, helper_form_id, distress_fx, distress_fy));
+                    let (target_fx, target_fy) = foe.as_ref()
+                        .map(|ff| (ff.fx, ff.fy))
+                        .unwrap_or((distress_fx, distress_fy));
+                    best_helper = Some((dist_ratio, real_damage, helper_form_id, target_fx, target_fy));
                 }
             },
 

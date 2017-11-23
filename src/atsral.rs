@@ -71,7 +71,6 @@ impl Atsral {
     }
 
     pub fn cry(&mut self, cry: Cry) {
-        debug!("incoming {:?}", cry);
         self.new_cries.push(cry);
     }
 
