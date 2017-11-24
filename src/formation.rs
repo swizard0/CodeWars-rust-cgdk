@@ -358,8 +358,6 @@ impl Formation {
             dvt_s: Derivatives::new(),
         };
 
-        debug!("formation on {:?} with {} vehicles splitted by one on {:?} with {} vehicles and second on {:?} with {} vehicles",
-               bbox, form_a.vehicles.len() + form_b.vehicles.len(), rect_a, form_a.vehicles.len(), rect_b, form_b.vehicles.len());
         ((id_a, form_a), (id_b, form_b))
     }
 }

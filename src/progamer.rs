@@ -188,7 +188,7 @@ impl Progamer {
                 let form_id = form.id;
                 action.vehicle_type = form.kind().clone();
                 let bbox = form.bounding_box();
-                debug!("selecting unbound formation {} on {:?}", form_id, bbox);
+                debug!("selecting unbound formation {} of {:?}", form_id, form.kind());
                 action.action = Some(ActionType::ClearAndSelect);
                 action.left = bbox.left;
                 action.top = bbox.top;
