@@ -33,7 +33,7 @@ mod side;
 use self::rand::{SeedableRng, XorShiftRng};
 
 use self::side::Side;
-use self::formation::Formations;
+use self::formation::{FormationId, Formations};
 use self::progamer::Progamer;
 use self::tactic::Tactic;
 use self::atsral::{Atsral, AtsralForecast};
@@ -45,6 +45,7 @@ pub struct MyStrategy {
     atsral: Atsral,
     progamer: Progamer,
     rng: Option<XorShiftRng>,
+    split_buf: Vec<FormationId>,
 }
 
 impl Default for MyStrategy {
@@ -56,6 +57,7 @@ impl Default for MyStrategy {
             atsral: Atsral::new(),
             progamer: Progamer::new(),
             rng: None,
+            split_buf: Vec::new(),
         }
     }
 }
@@ -98,6 +100,26 @@ impl MyStrategy {
         for update in world.vehicle_updates.iter() {
             self.allies.update(update, world.tick_index);
             self.enemies.update(update, world.tick_index);
+        }
+
+        // split too sparse enemy formations
+        loop {
+            {
+                let mut forms_iter = self.enemies.iter();
+                while let Some(mut form) = forms_iter.next() {
+                    let density = form.bounding_box().density;
+                    if density < consts::ENEMY_SPLIT_DENSITY {
+                        debug!("splitting enemy formation {} of {} {:?} (density = {})", form.id, form.size(), form.kind(), density);
+                        self.split_buf.push(form.id);
+                    }
+                }
+            }
+            if self.split_buf.is_empty() {
+                break;
+            }
+            for form_id in self.split_buf.drain(..) {
+                self.enemies.split(form_id);
+            }
         }
     }
 
