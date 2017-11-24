@@ -110,9 +110,6 @@ fn listen_to_atsral<'a>(form: &mut FormationRef<'a>, game: &Game, atsral: &mut A
                         false
                     }
                 }).unwrap_or(true) {
-                    // let (target_fx, target_fy) = foe.as_ref()
-                    //     .map(|ff| (ff.fx, ff.fy))
-                    //     .unwrap_or((distress_fx, distress_fy));
                     let (target_fx, target_fy) = (distress_fx, distress_fy);
                     best_helper = Some((dist_ratio, real_damage, helper_form_id, target_fx, target_fy));
                 }
@@ -185,9 +182,6 @@ pub fn basic_insticts<'a, R>(
         // we are under attack while running away: keep running
         (&mut Some(Plan { desire: Desire::Escape { .. }, .. }), Trigger::Hurts) =>
             Reaction::KeepOn,
-        // // we are under attack while attack ourselves: ignore the pain
-        // (&mut Some(Plan { desire: Desire::Attack { .. }, .. }), Trigger::Hurts) =>
-        //     Reaction::KeepOn,
         // we are under attack while doing something else: immediately escape
         (&mut Some(..), Trigger::Hurts) =>
             Reaction::RunAway,
