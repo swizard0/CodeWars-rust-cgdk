@@ -19,6 +19,7 @@ enum AtsralProclaims {
     },
     ProtectorIsChoosen { form_id: FormationId, fx: f64, fy: f64, },
     GoPunish { distress_fx: f64, distress_fy: f64, },
+    GoHunt { fx: f64, fy: f64, damage: i32, foe: Option<FoeFormation>, },
 }
 
 pub struct Config<'a> {
@@ -69,6 +70,17 @@ pub fn run<R>(mut form: FormationRef, atsral_fc: &mut AtsralForecast, tactic: &m
                         },
                     });
                 },
+                AtsralProclaims::GoHunt { fx, fy, damage, foe, } => {
+                    if let Some(ff) = foe {
+                        tactic.plan(Plan {
+                            form_id: form.id,
+                            tick: config.world.tick_index,
+                            desire: Desire::Hunt {
+                                fx, fy, x: ff.fx, y: ff.fy, damage,
+                            },
+                        });
+                    }
+                },
             },
     }
 }
@@ -118,6 +130,14 @@ fn listen_to_atsral<'a>(form: &mut FormationRef<'a>, game: &Game, atsral: &mut A
             // we have been chosen as a protector
             (Cry::ComePunishThem { distress_fx, distress_fy, .. }, ..) =>
                 return AtsralProclaims::GoPunish { distress_fx, distress_fy, },
+
+            // we have been found a victim
+            (Cry::ComeHuntHim { fx, fy, damage, foe, }, ..) =>
+                return AtsralProclaims::GoHunt { fx, fy, damage, foe, },
+
+            // should not be even received
+            (Cry::ReadyToHunt { .. }, ..) =>
+                unreachable!(),
         }
     }
 
@@ -164,6 +184,7 @@ pub fn basic_insticts<'a, R>(
         Scatter,
         RunAway,
         YellForHelp { fx: f64, fy: f64, escape_x: f64, escape_y: f64, },
+        YellForHunt { fx: f64, fy: f64, },
     }
 
     let mut reaction = match (form.current_plan(), trigger) {
@@ -173,6 +194,9 @@ pub fn basic_insticts<'a, R>(
         // we are escaping right now, yell for help
         (&mut Some(Plan { desire: Desire::Escape { fx, fy, x: escape_x, y: escape_y, .. }, ..}), Trigger::None) =>
             Reaction::YellForHelp { fx, fy, escape_x, escape_y, },
+        // we are scouting right now, yell for hunt
+        (&mut Some(Plan { desire: Desire::ScoutTo { fx, fy, .. }, ..}), Trigger::None) =>
+            Reaction::YellForHunt { fx, fy, },
         // nothing annoying around, keep following the plan
         (&mut Some(..), Trigger::None) =>
             Reaction::KeepOn,
@@ -197,8 +221,11 @@ pub fn basic_insticts<'a, R>(
         // we are currently scouting and eventually stopped: maybe we should make formation more compact
         (&mut Some(Plan { desire: Desire::ScoutTo { .. }, .. }), Trigger::Idle) =>
             Reaction::CloseRanks,
-        // we are currently attacking and also not moving: keep attacking then
+        // we are currently attacking and also not moving: do something more useful
         (&mut Some(Plan { desire: Desire::Attack { .. }, .. }), Trigger::Idle) =>
+            Reaction::CloseRanks,
+        // we are currently hunting and also not moving: do something more useful
+        (&mut Some(Plan { desire: Desire::Hunt { .. }, .. }), Trigger::Idle) =>
             Reaction::CloseRanks,
         // we are currently escaping and eventually stopped: looks like we are safe, so go ahead do something
         (&mut Some(Plan { desire: Desire::Escape { .. }, ..}), Trigger::Idle) =>
@@ -234,13 +261,18 @@ pub fn basic_insticts<'a, R>(
             scatter(form, world, tactic),
         Reaction::RunAway =>
             run_away(form, world, tactic, rng),
-        Reaction::YellForHelp { fx, fy, escape_x, escape_y, } => {
+        Reaction::YellForHelp { fx, fy, escape_x, escape_y, } =>
             atsral.cry(Cry::ImUnderAttack {
                 fx, fy, escape_x, escape_y,
                 form_id: form.id,
                 foe: None,
-            });
-        },
+            }),
+        Reaction::YellForHunt { fx, fy, } =>
+            atsral.cry(Cry::ReadyToHunt {
+                fx, fy,
+                form_id: form.id,
+                kind: form.kind().clone(),
+            }),
     }
 }
 

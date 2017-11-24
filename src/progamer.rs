@@ -145,6 +145,13 @@ impl Progamer {
                         action.y = y - fy;
                         GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
                     },
+                    Some(Plan { desire: Desire::Hunt { fx, fy, x, y, .. }, .. }) => {
+                        debug!("hunt formation {} of {:?} aiming ({}, {})", form.id, form.kind(), x, y);
+                        action.action = Some(ActionType::Move);
+                        action.x = x - fx;
+                        action.y = y - fy;
+                        GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
+                    },
                     Some(Plan { desire: Desire::Escape { fx, fy, x, y, danger_coeff }, .. }) => {
                         debug!("escape formation {} of {:?} danger {} aiming ({}, {})", form.id, form.kind(), danger_coeff, x, y);
                         action.action = Some(ActionType::Move);

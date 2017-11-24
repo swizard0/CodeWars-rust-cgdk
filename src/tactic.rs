@@ -14,6 +14,7 @@ pub enum Desire {
     Compact { fx: f64, fy: f64, kind: Option<VehicleType>, density: f64, },
     Attack { fx: f64, fy: f64, x: f64, y: f64, sq_dist: f64, },
     Escape { fx: f64, fy: f64, x: f64, y: f64, danger_coeff: f64, },
+    Hunt { fx: f64, fy: f64, x: f64, y: f64, damage: i32, },
     FormationSplit { group_size: usize, },
 }
 
@@ -66,6 +67,13 @@ impl Ord for Plan {
             (&Desire::Attack { .. }, _) =>
                 Ordering::Greater,
             (_, &Desire::Attack { .. }) =>
+                Ordering::Less,
+
+            (&Desire::Hunt { damage: d_a, .. }, &Desire::Hunt { damage: d_b, .. }) =>
+                d_a.partial_cmp(&d_b).unwrap(),
+            (&Desire::Hunt { .. }, _) =>
+                Ordering::Greater,
+            (_, &Desire::Hunt { .. }) =>
                 Ordering::Less,
 
             (&Desire::ScoutTo { kind: ref k_a, sq_dist: d_a, .. }, &Desire::ScoutTo { kind: ref k_b, sq_dist: d_b, .. }) =>
@@ -224,6 +232,30 @@ mod test {
             Plan {
                 form_id: 2, tick: 0,
                 desire: Desire::Attack { fx: 10., fy: 10., x: 15., y: 15., sq_dist: 50., },
+            }
+        ).form_id, 2);
+    }
+
+    #[test]
+    fn hunt() {
+        assert_eq!(max(
+            Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::Hunt { fx: 10., fy: 10., x: 20., y: 20., damage: 200, },
+            },
+            Plan {
+                form_id: 2, tick: 0,
+                desire: Desire::Hunt { fx: 10., fy: 10., x: 15., y: 15., damage: 50, },
+            }
+        ).form_id, 1);
+        assert_eq!(max(
+            Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::FormationSplit { group_size: 100, },
+            },
+            Plan {
+                form_id: 2, tick: 0,
+                desire: Desire::Hunt { fx: 10., fy: 10., x: 15., y: 15., damage: 50, },
             }
         ).form_id, 2);
     }
