@@ -160,8 +160,8 @@ impl MyStrategy {
 }
 
 // mine units:
-// pink --
+// pink -- fighters
 // orange --
-// yellow --
+// yellow -- helicopters
 // brown --
 // red --

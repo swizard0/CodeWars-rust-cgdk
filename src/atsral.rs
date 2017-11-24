@@ -165,7 +165,7 @@ impl Atsral {
                     let combat_his = combat_info(game, form.kind(), &nf.kind);
                     let dmg_mine = combat_mine.damage - combat_his.defence;
                     let dmg_his = combat_his.damage - combat_mine.defence;
-                    if dmg_mine < dmg_his {
+                    if dmg_mine <= dmg_his {
                         continue;
                     }
                     if nf.nearest.as_ref().map(|ff| {
