@@ -277,18 +277,18 @@ pub fn basic_insticts<'a, R>(
 }
 
 fn scout<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, rng: &mut R) where R: Rng {
-    let rx = world.width / consts::SCOUT_RANGE_FACTOR;
-    let mut x = rng.gen_range(-rx, rx);
-    let ry = world.height / consts::SCOUT_RANGE_FACTOR;
-    let mut y = rng.gen_range(-ry, ry);
     let (fx, fy, fd) = {
         let bbox = form.bounding_box();
         (bbox.cx, bbox.cy, bbox.max_side())
     };
+    let mut x = rng.gen_range(-fx, (world.width - fx));
+    x /= consts::SCOUT_RANGE_FACTOR;
     x += fx;
-    y += fy;
     if x < fd { x = fd; }
     if x > world.width - fd { x = world.width - fd; }
+    let mut y = rng.gen_range(-fy, (world.height - fy));
+    y /= consts::SCOUT_RANGE_FACTOR;
+    y += fy;
     if y < fd { y = fd; }
     if y > world.height - fd { y = world.height - fd; }
 
@@ -331,9 +331,9 @@ fn scatter<'a>(form: FormationRef<'a>, world: &World, tactic: &mut Tactic) {
 }
 
 fn run_away<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, rng: &mut R) where R: Rng {
-    let (fx, fy) = {
+    let (fx, fy, fd) = {
         let bbox = form.bounding_box();
-        (bbox.cx, bbox.cy)
+        (bbox.cx, bbox.cy, bbox.max_side())
     };
 
     // try to detect right escape direction
@@ -344,7 +344,7 @@ fn run_away<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tacti
         } else {
             let x = fx - (dvts.d_x * consts::ESCAPE_BOUNCE_FACTOR / count as f64);
             let y = fy - (dvts.d_y * consts::ESCAPE_BOUNCE_FACTOR / count as f64);
-            if x > 0. && x < world.width && y > 0. && y < world.height {
+            if x > fd && x < (world.width - fd) && y > fd && y < (world.height - fd) {
                 Some((x, y))
             } else {
                 None
@@ -355,8 +355,8 @@ fn run_away<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tacti
     let (x, y) = escape_coord
         .unwrap_or_else(|| {
             // cannot detect right escape direction: run away in random one
-            let x = rng.gen_range(0., world.width);
-            let y = rng.gen_range(0., world.height);
+            let x = rng.gen_range(fd, world.width - fd);
+            let y = rng.gen_range(fd, world.height - fd);
             (x, y)
         });
     tactic.plan(Plan {
