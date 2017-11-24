@@ -39,15 +39,16 @@ impl Progamer {
                     unreachable!()
                 };
 
-                let mut closest_bbox: Option<(f64, f64, f64)> = None;
+                let mut closest_bbox: Option<(f64, f64, f64, Option<_>)> = None;
                 {
                     // detect possible collisions
                     let mut forms_iter = formations.iter();
                     while let Some(mut form) = forms_iter.next() {
+                        let form_kind = form.kind().clone();
                         if form.id == form_id {
                             continue;
                         }
-                        if !collides(&self_kind, form.kind()) {
+                        if !collides(&self_kind, &form_kind) {
                             continue;
                         }
                         let bbox = form.bounding_box();
@@ -56,32 +57,35 @@ impl Progamer {
                                 sq_dist(self_bbox.cx, self_bbox.cy, bbox.cx, bbox.cy);
                             if closest_bbox.as_ref().map(|c| dist_to_obstacle < c.0).unwrap_or(true) {
                                 let (new_x, new_y) = self_bbox.correct_trajectory(bbox);
-                                closest_bbox = Some((dist_to_obstacle, new_x, new_y));
+                                closest_bbox = Some((dist_to_obstacle, new_x, new_y, form_kind));
                             }
                         }
                     }
                 }
-                if let Some((_, new_x, new_y)) = closest_bbox {
+                if let Some((_, new_x, new_y, collide_kind)) = closest_bbox {
                     if let Some(mut form) = formations.get_by_id(form_id) {
                         let kind = form.kind().clone();
                         // correct move trajectory
                         match (action.action, form.current_plan()) {
                             (Some(ActionType::Move), &mut Some(Plan { desire: Desire::ScoutTo { fx, fy, ref mut x, ref mut y, .. }, .. })) => {
-                                debug!("correcting scout move {} of {:?}: ({}, {}) -> ({}, {})", form_id, kind, x, y, new_x, new_y);
+                                debug!("correcting scout move {} of {:?}: ({}, {}) -> ({}, {}) -- colliding with {:?}",
+                                       form_id, kind, x, y, new_x, new_y, collide_kind);
                                 *x = new_x;
                                 *y = new_y;
                                 action.x = new_x - fx;
                                 action.y = new_y - fy;
                             },
                             (Some(ActionType::Move), &mut Some(Plan { desire: Desire::Attack { fx, fy, ref mut x, ref mut y, .. }, .. })) => {
-                                debug!("correcting attack move {} of {:?}: ({}, {}) -> ({}, {})", form_id, kind, x, y, new_x, new_y);
+                                debug!("correcting attack move {} of {:?}: ({}, {}) -> ({}, {}) -- colliding with {:?}",
+                                       form_id, kind, x, y, new_x, new_y, collide_kind);
                                 *x = new_x;
                                 *y = new_y;
                                 action.x = new_x - fx;
                                 action.y = new_y - fy;
                             },
                             (Some(ActionType::Move), &mut Some(Plan { desire: Desire::Escape { fx, fy, ref mut x, ref mut y, .. }, .. })) => {
-                                debug!("correcting escape move {} of {:?}: ({}, {}) -> ({}, {})", form_id, kind, x, y, new_x, new_y);
+                                debug!("correcting escape move {} of {:?}: ({}, {}) -> ({}, {}) -- colliding with {:?}",
+                                       form_id, kind, x, y, new_x, new_y, collide_kind);
                                 *x = new_x;
                                 *y = new_y;
                                 action.x = new_x - fx;
