@@ -43,6 +43,12 @@ impl Rect {
         x >= self.left && x <= self.right && y >= self.top && y <= self.bottom
     }
 
+    pub fn max_side(&self) -> f64 {
+        let w = self.right - self.left;
+        let h = self.bottom - self.top;
+        w.max(h)
+    }
+
     pub fn sq_radius(&self) -> f64 {
         let wl = self.cx - self.left;
         let wr = self.right - self.cx;

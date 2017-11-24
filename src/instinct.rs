@@ -251,18 +251,20 @@ pub fn basic_insticts<'a, R>(
 }
 
 fn scout<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, rng: &mut R) where R: Rng {
-    let mut x = rng.gen_range(-(world.width / 4.), world.width / 4.);
-    let mut y = rng.gen_range(-(world.height / 4.), world.height / 4.);
-    let (fx, fy, fr) = {
+    let rx = world.width / consts::SCOUT_RANGE_FACTOR;
+    let mut x = rng.gen_range(-rx, rx);
+    let ry = world.height / consts::SCOUT_RANGE_FACTOR;
+    let mut y = rng.gen_range(-ry, ry);
+    let (fx, fy, fd) = {
         let bbox = form.bounding_box();
-        (bbox.cx, bbox.cy, bbox.sq_radius())
+        (bbox.cx, bbox.cy, bbox.max_side())
     };
     x += fx;
     y += fy;
-    if x < fr { x = fr; }
-    if x > world.width - fr { x = world.width - fr; }
-    if y < fr { y = fr; }
-    if y > world.height - fr { y = world.height - fr; }
+    if x < fd { x = fd; }
+    if x > world.width - fd { x = world.width - fd; }
+    if y < fd { y = fd; }
+    if y > world.height - fd { y = world.height - fd; }
 
     tactic.plan(Plan {
         form_id: form.id,
