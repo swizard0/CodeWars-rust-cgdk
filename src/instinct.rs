@@ -21,12 +21,18 @@ enum AtsralProclaims {
     GoPunish { distress_fx: f64, distress_fy: f64, },
 }
 
-pub fn run<'a, R>(mut form: FormationRef<'a>, world: &World, game: &Game, atsral_fc: &mut AtsralForecast, tactic: &mut Tactic, rng: &mut R) where R: Rng {
+pub struct Config<'a> {
+    pub world: &'a World,
+    pub game: &'a Game,
+    pub forms_count: usize,
+}
+
+pub fn run<R>(mut form: FormationRef, atsral_fc: &mut AtsralForecast, tactic: &mut Tactic, rng: &mut R, config: Config) where R: Rng {
     match *atsral_fc {
         AtsralForecast::Silence(ref mut atsral) =>
-            basic_insticts(form, world, atsral, tactic, rng),
+            basic_insticts(form, config.world, config.forms_count, atsral, tactic, rng),
         AtsralForecast::Voices(ref mut atsral) =>
-            match listen_to_atsral(&mut form, game, atsral) {
+            match listen_to_atsral(&mut form, config.game, atsral) {
                 AtsralProclaims::Tranquillity =>
                     (),
                 AtsralProclaims::ReadyToHelp { form_id, distress_fx, distress_fy, escape_x, escape_y, foe } => {
@@ -56,7 +62,7 @@ pub fn run<'a, R>(mut form: FormationRef<'a>, world: &World, game: &Game, atsral
                     };
                     tactic.plan(Plan {
                         form_id: form.id,
-                        tick: world.tick_index,
+                        tick: config.world.tick_index,
                         desire: Desire::Attack {
                             fx, fy, x, y,
                             sq_dist: sq_dist(fx, fy, x, y),
@@ -125,8 +131,15 @@ fn listen_to_atsral<'a>(form: &mut FormationRef<'a>, game: &Game, atsral: &mut A
     }
 }
 
-pub fn basic_insticts<'a, R>(mut form: FormationRef<'a>, world: &World, atsral: &mut Atsral, tactic: &mut Tactic, rng: &mut R) where R: Rng {
-
+pub fn basic_insticts<'a, R>(
+    mut form: FormationRef<'a>,
+    world: &World,
+    forms_count: usize,
+    atsral: &mut Atsral,
+    tactic: &mut Tactic,
+    rng: &mut R)
+    where R: Rng
+{
     #[derive(Debug)]
     enum Trigger {
         None,
@@ -208,7 +221,7 @@ pub fn basic_insticts<'a, R>(mut form: FormationRef<'a>, world: &World, atsral: 
                 reaction = Reaction::Scatter;
             },
             // ensure that we really need to scatter
-            Reaction::Scatter if form.size() < consts::SPLIT_MAX_THRESHOLD =>
+            Reaction::Scatter if forms_count >= consts::SPLIT_MAX_FORMS =>
                 reaction = Reaction::GoCurious,
             // keep on with current reaction
             _ =>

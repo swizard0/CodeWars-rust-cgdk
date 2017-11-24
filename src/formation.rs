@@ -93,6 +93,10 @@ impl Formations {
             panic!("cannot split formation with id = {}: no such formation", form_id)
         }
     }
+
+    pub fn total(&self) -> usize {
+        self.forms.len()
+    }
 }
 
 pub struct FormationsIter<'a> {

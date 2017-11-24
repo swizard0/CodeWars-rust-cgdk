@@ -113,6 +113,7 @@ impl MyStrategy {
 
         self.tactic.clear();
         loop {
+            let forms_count = self.allies.total();
             {
                 let mut atsral_fc = if self.atsral.is_silent() {
                     AtsralForecast::Silence(&mut self.atsral)
@@ -121,7 +122,11 @@ impl MyStrategy {
                 };
                 let mut forms_iter = self.allies.iter();
                 while let Some(form) = forms_iter.next() {
-                    instinct::run(form, world, game, &mut atsral_fc, &mut self.tactic, rng);
+                    instinct::run(form, &mut atsral_fc, &mut self.tactic, rng, instinct::Config {
+                        world,
+                        game,
+                        forms_count,
+                    });
                 }
             }
             self.atsral.analyze(&mut self.enemies, game);
