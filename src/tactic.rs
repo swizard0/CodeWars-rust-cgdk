@@ -29,7 +29,6 @@ impl Tactic {
     }
 
     pub fn plan(&mut self, plan: Plan) {
-        debug!("new plan incoming: {:?}", plan);
         self.most_urgent = Some(if let Some(current) = self.most_urgent.take() {
             ::std::cmp::max(current, plan)
         } else {
@@ -38,7 +37,9 @@ impl Tactic {
     }
 
     pub fn most_urgent(&mut self) -> Option<Plan> {
-        self.most_urgent.take()
+        let plan = self.most_urgent.take();
+        debug!("most urgent plan: {:?}", plan);
+        plan
     }
 
     pub fn clear(&mut self) {
