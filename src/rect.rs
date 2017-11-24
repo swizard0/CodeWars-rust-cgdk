@@ -1,3 +1,4 @@
+use super::common::sq_dist;
 
 #[derive(Clone, PartialEq, Default, Debug)]
 pub struct Rect {
@@ -55,16 +56,36 @@ impl Rect {
     pub fn sq_dist_to_line(&self, from_x: f64, from_y: f64, to_x: f64, to_y: f64) -> f64 {
         let upper = (to_x - from_x) * (self.cy - from_y) - (to_y - from_y) * (self.cx - from_x);
         let upper_sq = upper * upper;
-        let lower_sq = (to_x - from_x) * (to_x - from_x) + (to_y - from_y) * (to_y - from_y);
+        let lower_sq = sq_dist(from_x, from_y, to_x, to_y);
         upper_sq / lower_sq
     }
 
     pub fn predict_collision(&self, target_x: f64, target_y: f64, obstacle: &Rect) -> bool {
+        let limit = self.sq_radius_fuzzy_sum(obstacle);
+        let scalar = (obstacle.cx - target_x) * (self.cx - target_x) + (obstacle.cy - target_y) * (self.cy - target_y);
+        if scalar < 0. {
+            sq_dist(obstacle.cx, obstacle.cy, target_x, target_y) < limit
+        } else {
+            let sqd = obstacle.sq_dist_to_line(self.cx, self.cy, target_x, target_y);
+            sqd < limit
+        }
+    }
+
+    pub fn correct_trajectory(&self, obstacle: &Rect) -> (f64, f64) {
+        let limit = self.sq_radius_fuzzy_sum(obstacle);
+        let sq_dist = sq_dist(self.cx, self.cy, obstacle.cx, obstacle.cy);
+        let factor_sq = limit / sq_dist;
+        let factor = factor_sq.sqrt();
+        let x = (self.cx - obstacle.cx) * factor + obstacle.cx;
+        let y = (self.cy - obstacle.cy) * factor + obstacle.cy;
+        (x, y)
+    }
+
+    fn sq_radius_fuzzy_sum(&self, other: &Rect) -> f64 {
         let sq_r_s = self.sq_radius();
-        let sq_r_o = obstacle.sq_radius();
+        let sq_r_o = other.sq_radius();
         let sq_r_m = sq_r_s.max(sq_r_o);
-        let limit = sq_r_s + sq_r_o + (2. * sq_r_m);
-        obstacle.sq_dist_to_line(self.cx, self.cy, target_x, target_y) <= limit
+        sq_r_s + sq_r_o + (2. * sq_r_m)
     }
 }
 
@@ -99,6 +120,17 @@ mod test {
         assert_eq!(rb.predict_collision(20., 10., &ra), true);
         assert_eq!(rb.predict_collision(2., 10., &ra), false);
         assert_eq!(rb.predict_collision(4., 10., &ra), false);
-        assert_eq!(rb.predict_collision(8., 10., &ra), true);
+        assert_eq!(rb.predict_collision(8., 10., &ra), false);
+        assert_eq!(rb.predict_collision(12., 10., &ra), true);
+    }
+
+    #[test]
+    fn correct_trajectory() {
+        let ra = Rect { left: 20., top: 10., right: 25.0, bottom: 14.0, cx: 21., cy: 13., ..Default::default() };
+        let rb = Rect { left: 0., top: 10., right: 5.0, bottom: 14.0, cx: 1., cy: 13., ..Default::default() };
+        let (target_x, target_y) = rb.correct_trajectory(&ra);
+        assert_eq!(target_x, 11.);
+        assert_eq!(target_y, 13.);
+        assert_eq!(rb.predict_collision(target_x, target_y, &ra), false);
     }
 }
