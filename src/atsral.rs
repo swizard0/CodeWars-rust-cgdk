@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use model::{VehicleType, Game};
 use super::formation::{FormationId, Formations};
 use super::common::{sq_dist, combat_info};
+use super::consts;
 
 #[derive(Clone, Debug)]
 pub struct FoeFormation {
@@ -155,9 +156,16 @@ impl Atsral {
                 // locate nearest foe for `Cry::ReadyToHelp`
                 for nf in self.hunter_loc.iter_mut() {
                     let sq_dist = sq_dist(nf.fx, nf.fy, foe_fx, foe_fy);
+                    let wp = game.world_width / consts::HUNT_RANGE_FACTOR;
+                    let hp = game.world_height / consts::HUNT_RANGE_FACTOR;
+                    if sq_dist > (wp * wp) + (hp * hp) {
+                        continue;
+                    }
                     let combat = combat_info(game, &nf.kind, form.kind());
                     let dmg = combat.damage - combat.defence;
-                    if nf.nearest.as_ref().map(|ff| dmg > nf.damage || (dmg == nf.damage && sq_dist < ff.sq_dist)).unwrap_or(true) {
+                    if nf.nearest.as_ref().map(|ff| {
+                        dmg > nf.damage || (dmg == nf.damage && sq_dist < ff.sq_dist)
+                    }).unwrap_or(true) {
                         if let &Some(ref kind) = form.kind() {
                             nf.damage = dmg;
                             nf.nearest = Some(FoeFormation {
