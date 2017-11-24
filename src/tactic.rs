@@ -119,12 +119,12 @@ fn compare_vehicle_types(k_a: &Option<VehicleType>, k_b: &Option<VehicleType>) -
             Ordering::Greater,
         (&Some(..), &Some(VehicleType::Ifv)) =>
             Ordering::Less,
-        // bad for fast movements: arrv
-        (&Some(VehicleType::Arrv), &Some(VehicleType::Arrv)) =>
+        // bad for fast movements: tank (arrv is faster, but tank is more important)
+        (&Some(VehicleType::Tank), &Some(VehicleType::Tank)) =>
             Ordering::Equal,
-        (&Some(VehicleType::Arrv), &Some(..)) =>
+        (&Some(VehicleType::Tank), &Some(..)) =>
             Ordering::Greater,
-        (&Some(..), &Some(VehicleType::Arrv)) =>
+        (&Some(..), &Some(VehicleType::Tank)) =>
             Ordering::Less,
         // everything else is really bad for fast movements
         _ =>

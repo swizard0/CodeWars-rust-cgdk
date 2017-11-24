@@ -164,4 +164,4 @@ impl MyStrategy {
 // orange --
 // yellow -- helicopters
 // brown --
-// red --
+// red -- tanks
