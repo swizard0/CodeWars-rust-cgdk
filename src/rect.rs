@@ -61,14 +61,20 @@ impl Rect {
     }
 
     pub fn predict_collision(&self, target_x: f64, target_y: f64, obstacle: &Rect) -> bool {
+        // check source
+        let scalar = (obstacle.cx - self.cx) * (target_x - self.cx) + (obstacle.cy - self.cy) * (target_y - self.cy);
+        if scalar < 0. {
+            return false;
+        }
+        // check destination
         let limit = self.sq_radius_fuzzy_sum(obstacle);
         let scalar = (obstacle.cx - target_x) * (self.cx - target_x) + (obstacle.cy - target_y) * (self.cy - target_y);
         if scalar < 0. {
-            sq_dist(obstacle.cx, obstacle.cy, target_x, target_y) < limit
-        } else {
-            let sqd = obstacle.sq_dist_to_line(self.cx, self.cy, target_x, target_y);
-            sqd < limit
+            return sq_dist(obstacle.cx, obstacle.cy, target_x, target_y) < limit
         }
+        // check distance to trajectory
+        let sqd = obstacle.sq_dist_to_line(self.cx, self.cy, target_x, target_y);
+        sqd < limit
     }
 
     pub fn correct_trajectory(&self, obstacle: &Rect) -> (f64, f64) {
