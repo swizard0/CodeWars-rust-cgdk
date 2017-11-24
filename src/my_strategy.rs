@@ -158,3 +158,10 @@ impl MyStrategy {
         }
     }
 }
+
+// mine units:
+// pink --
+// orange --
+// yellow --
+// brown --
+// red --

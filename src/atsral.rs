@@ -162,9 +162,9 @@ impl Atsral {
                         continue;
                     }
                     let combat_mine = combat_info(game, &nf.kind, form.kind());
-                    let dmg_mine = combat_mine.damage - combat_mine.defence;
                     let combat_his = combat_info(game, form.kind(), &nf.kind);
-                    let dmg_his = combat_his.damage - combat_his.defence;
+                    let dmg_mine = combat_mine.damage - combat_his.defence;
+                    let dmg_his = combat_his.damage - combat_mine.defence;
                     if dmg_mine < dmg_his {
                         continue;
                     }
