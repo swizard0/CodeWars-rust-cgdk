@@ -153,7 +153,7 @@ impl Atsral {
                         }
                     }
                 }
-                // locate nearest foe for `Cry::ReadyToHelp`
+                // locate nearest foe for `Cry::ReadyToHunt`
                 for nf in self.hunter_loc.iter_mut() {
                     let sq_dist = sq_dist(nf.fx, nf.fy, foe_fx, foe_fy);
                     let wp = game.world_width / consts::HUNT_RANGE_FACTOR;
@@ -161,18 +161,18 @@ impl Atsral {
                     if sq_dist > (wp * wp) + (hp * hp) {
                         continue;
                     }
-                    let combat_me = combat_info(game, &nf.kind, form.kind());
-                    let dmg_me = combat_me.damage - combat_me.defence;
-                    let combat_him = combat_info(game, form.kind(), &nf.kind);
-                    let dmg_him = combat_him.damage - combat_him.defence;
-                    if dmg_me > dmg_him {
+                    let combat_mine = combat_info(game, &nf.kind, form.kind());
+                    let dmg_mine = combat_mine.damage - combat_mine.defence;
+                    let combat_his = combat_info(game, form.kind(), &nf.kind);
+                    let dmg_his = combat_his.damage - combat_his.defence;
+                    if dmg_mine < dmg_his {
                         continue;
                     }
                     if nf.nearest.as_ref().map(|ff| {
-                        dmg_me > nf.damage || (dmg_me == nf.damage && sq_dist < ff.sq_dist)
+                        dmg_mine > nf.damage || (dmg_mine == nf.damage && sq_dist < ff.sq_dist)
                     }).unwrap_or(true) {
                         if let &Some(ref kind) = form.kind() {
-                            nf.damage = dmg_me;
+                            nf.damage = dmg_mine;
                             nf.nearest = Some(FoeFormation {
                                 kind: kind.clone(),
                                 fx: foe_fx,
