@@ -76,7 +76,7 @@ pub fn run<R>(mut form: FormationRef, atsral_fc: &mut AtsralForecast, tactic: &m
                             form_id: form.id,
                             tick: config.world.tick_index,
                             desire: Desire::Hunt {
-                                fx, fy, x: ff.fx, y: ff.fy, damage,
+                                fx, fy, x: ff.fx, y: ff.fy, damage, foe: Some(ff.kind),
                             },
                         });
                     }

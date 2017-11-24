@@ -14,7 +14,7 @@ pub enum Desire {
     Compact { fx: f64, fy: f64, kind: Option<VehicleType>, density: f64, },
     Attack { fx: f64, fy: f64, x: f64, y: f64, sq_dist: f64, },
     Escape { fx: f64, fy: f64, x: f64, y: f64, danger_coeff: f64, },
-    Hunt { fx: f64, fy: f64, x: f64, y: f64, damage: i32, },
+    Hunt { fx: f64, fy: f64, x: f64, y: f64, damage: i32, foe: Option<VehicleType>, },
     FormationSplit { group_size: usize, },
 }
 
