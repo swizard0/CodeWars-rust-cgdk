@@ -59,8 +59,12 @@ impl Rect {
         upper_sq / lower_sq
     }
 
-    pub fn predict_collision(&self, from_x: f64, from_y: f64, to_x: f64, to_y: f64) -> bool {
-        self.sq_dist_to_line(from_x, from_y, to_x, to_y) <= self.sq_radius()
+    pub fn predict_collision(&self, target_x: f64, target_y: f64, obstacle: &Rect) -> bool {
+        let sq_r_s = self.sq_radius();
+        let sq_r_o = obstacle.sq_radius();
+        let sq_r_m = sq_r_s.max(sq_r_o);
+        let limit = sq_r_s + sq_r_o + (2. * sq_r_m);
+        obstacle.sq_dist_to_line(self.cx, self.cy, target_x, target_y) <= limit
     }
 }
 
@@ -88,8 +92,13 @@ mod test {
 
     #[test]
     fn predict_collision() {
-        let ra = Rect { left: 10., top: 10., right: 15.0, bottom: 14.0, cx: 11., cy: 13., ..Default::default() };
-        assert!(!ra.predict_collision(9., 7., 13., 7.0));
-        assert!(ra.predict_collision(9., 9., 13., 9.0));
+        let ra = Rect { left: 20., top: 10., right: 25.0, bottom: 14.0, cx: 21., cy: 13., ..Default::default() };
+        let rb = Rect { left: 0., top: 10., right: 5.0, bottom: 14.0, cx: 1., cy: 13., ..Default::default() };
+        assert_eq!(ra.sq_radius(), 25.0);
+        assert_eq!(rb.sq_radius(), 25.0);
+        assert_eq!(rb.predict_collision(20., 10., &ra), true);
+        assert_eq!(rb.predict_collision(2., 10., &ra), false);
+        assert_eq!(rb.predict_collision(4., 10., &ra), false);
+        assert_eq!(rb.predict_collision(8., 10., &ra), true);
     }
 }
