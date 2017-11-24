@@ -106,8 +106,9 @@ fn listen_to_atsral<'a>(form: &mut FormationRef<'a>, game: &Game, atsral: &mut A
 
             // someone responds to our cry: choose the best one
             (Cry::ReadyToHelp { helper_form_id, helper_kind, helper_fx, helper_fy, distress_fx, distress_fy, escape_x, escape_y, foe, .. }, ..) => {
-                let info = combat_info(game, &helper_kind, &foe.as_ref().map(|ff| ff.kind));
-                let real_damage = info.damage - info.defence;
+                let combat_mine = combat_info(game, &helper_kind, &foe.as_ref().map(|ff| ff.kind));
+                let combat_his = combat_info(game, &foe.as_ref().map(|ff| ff.kind), &helper_kind);
+                let real_damage = combat_mine.damage - combat_his.defence;
                 let sq_dist_to_helper = sq_dist(distress_fx, distress_fy, helper_fx, helper_fy);
                 let sq_dist_to_escape = sq_dist(distress_fx, distress_fy, escape_x, escape_y);
                 let dist_ratio = sq_dist_to_helper as f64 / sq_dist_to_escape as f64;
@@ -281,12 +282,12 @@ fn scout<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, 
         let bbox = form.bounding_box();
         (bbox.cx, bbox.cy, bbox.max_side())
     };
-    let mut x = rng.gen_range(-fx, (world.width - fx));
+    let mut x = rng.gen_range(0. - fx, (world.width - fx));
     x /= consts::SCOUT_RANGE_FACTOR;
     x += fx;
     if x < fd { x = fd; }
     if x > world.width - fd { x = world.width - fd; }
-    let mut y = rng.gen_range(-fy, (world.height - fy));
+    let mut y = rng.gen_range(0. - fy, (world.height - fy));
     y /= consts::SCOUT_RANGE_FACTOR;
     y += fy;
     if y < fd { y = fd; }
