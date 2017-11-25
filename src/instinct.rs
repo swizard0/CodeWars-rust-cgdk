@@ -326,7 +326,7 @@ fn scatter<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic
     };
     let forced = if *form.stuck() {
         *form.stuck() = false;
-        true
+        false
     } else if density < consts::COMPACT_DENSITY {
         true
     } else {
