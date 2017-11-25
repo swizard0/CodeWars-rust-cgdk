@@ -91,7 +91,7 @@ pub fn run<R>(mut form: FormationRef, atsral_fc: &mut AtsralForecast, tactic: &m
                     tactic.plan(rng, Plan {
                         form_id: form.id,
                         tick: config.world.tick_index,
-                        desire: Desire::Nuke { vehicle_id, strike_x, strike_y, },
+                        desire: Desire::Nuke { vehicle_id, fx, fy, strike_x, strike_y, },
                     });
                 },
                 AtsralProclaims::ReadyToHeal { form_id, ill_fx, ill_fy, } => {
@@ -264,7 +264,7 @@ pub fn basic_insticts<'a, R>(
         GoCurious,
         Scatter,
         ScatterOrScout,
-        RunAway,
+        RunAway(Option<(f64, f64, f64, f64)>),
         YellForHelp { fx: f64, fy: f64, escape_x: f64, escape_y: f64, },
         YellForDoctor { fx: f64, fy: f64, },
         YellForHunt { fx: f64, fy: f64, },
@@ -313,13 +313,28 @@ pub fn basic_insticts<'a, R>(
 
         // we are under attack and we don't have a plan: run away
         (&mut None, Trigger::Hurts) =>
-            Reaction::RunAway,
-        // we are under attack while running away: yell for help
-        (&mut Some(Plan { desire: Desire::Escape { fx, fy, x: escape_x, y: escape_y, .. }, .. }), Trigger::Hurts) =>
-            Reaction::YellForHelp { fx, fy, escape_x, escape_y, },
-        // we are under attack while doing something else: immediately escape
-        (&mut Some(..), Trigger::Hurts) =>
-            Reaction::RunAway,
+            Reaction::RunAway(None),
+        // we are under attack while scouting: run away
+        (&mut Some(Plan { desire: Desire::ScoutTo { fx, fy, x, y, .. }, ..}), Trigger::Hurts) =>
+            Reaction::RunAway(Some((x, y, fx, fy))),
+        // we are under attack while attacking: run away
+        (&mut Some(Plan { desire: Desire::Attack { fx, fy, x, y, .. }, ..}), Trigger::Hurts) =>
+            Reaction::RunAway(Some((x, y, fx, fy))),
+        // we are under attack while running away: keep on escaping
+        (&mut Some(Plan { desire: Desire::Escape { fx, fy, x, y, .. }, .. }), Trigger::Hurts) =>
+            Reaction::RunAway(Some((fx, fy, x, y))),
+        // we are under attack while hunting: run away
+        (&mut Some(Plan { desire: Desire::Hunt { fx, fy, x, y, .. }, .. }), Trigger::Hurts) =>
+            Reaction::RunAway(Some((x, y, fx, fy))),
+        // we are under attack while moving towards doctor: run away
+        (&mut Some(Plan { desire: Desire::HurryToDoctor { fx, fy, x, y, .. }, .. }), Trigger::Hurts) =>
+            Reaction::RunAway(Some((x, y, fx, fy))),
+        // we are under attack while nuking: continue nuking then
+        (&mut Some(Plan { desire: Desire::Nuke { fx, fy, strike_x, strike_y, .. }, ..}), Trigger::Hurts) =>
+            Reaction::RunAway(Some((strike_x, strike_y, fx, fy))),
+        // we are currently scattering while being attacked: escape in random direction
+        (&mut Some(Plan { desire: Desire::FormationSplit { .. }, .. }), Trigger::Hurts) =>
+            Reaction::RunAway(None),
 
         // we are not moving and also don't have a plan: let's do something
         (&mut None, Trigger::Idle) =>
@@ -339,9 +354,9 @@ pub fn basic_insticts<'a, R>(
         // we are currently moving towards doctor and eventually stop moving: yell for a doctor once more
         (&mut Some(Plan { desire: Desire::HurryToDoctor { fx, fy, .. }, .. }), Trigger::Idle) =>
             Reaction::YellForDoctor { fx, fy, },
-        // we are currently nuking and not moving: continue nuking then
+        // we are currently nuking and not moving: do something more useful
         (&mut Some(Plan { desire: Desire::Nuke { .. }, ..}), Trigger::Idle) =>
-            Reaction::KeepOn,
+            Reaction::GoCurious,
         // we are currently scattering and eventually stopped: let's continue with something useful
         (&mut Some(Plan { desire: Desire::FormationSplit { .. }, .. }), Trigger::Idle) =>
             Reaction::GoCurious,
@@ -372,8 +387,8 @@ pub fn basic_insticts<'a, R>(
             scatter(form, world, tactic, rng),
         Reaction::ScatterOrScout =>
             scout(form, world, tactic, rng),
-        Reaction::RunAway =>
-            run_away(form, world, tactic, rng),
+        Reaction::RunAway(escape_vec) =>
+            run_away(escape_vec, form, world, tactic, rng),
         Reaction::YellForHelp { fx, fy, escape_x, escape_y, } => {
             atsral.cry(Cry::ImUnderAttack {
                 fx, fy, escape_x, escape_y,
@@ -445,29 +460,34 @@ fn scatter<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic
     });
 }
 
-fn run_away<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, rng: &mut R) where R: Rng {
+fn run_away<'a, R>(
+    escape_vec: Option<(f64, f64, f64, f64)>,
+    mut form: FormationRef<'a>,
+    world: &World,
+    tactic: &mut Tactic,
+    rng: &mut R)
+    where R: Rng
+{
     let (fx, fy, fd) = {
         let bbox = form.bounding_box();
         (bbox.cx, bbox.cy, bbox.max_side())
     };
+    let d_durability = {
+        let (dvts, _) = form.dvt_sums(world.tick_index);
+        dvts.d_durability
+    };
 
     // try to detect right escape direction
-    let (escape_coord, d_durability) = {
-        let (dvts, count) = form.dvt_sums(world.tick_index);
-        let coord = if dvts.d_x == 0. && dvts.d_y == 0. {
-            None
-        } else {
-            let x = fx - (dvts.d_x * consts::ESCAPE_BOUNCE_FACTOR / count as f64);
-            let y = fy - (dvts.d_y * consts::ESCAPE_BOUNCE_FACTOR / count as f64);
+    let (x, y) = escape_vec
+        .and_then(|(start_x, start_y, end_x, end_y)| {
+            let x = fx + (end_x - start_x) * consts::ESCAPE_BOUNCE_FACTOR;
+            let y = fy + (end_y - start_y) * consts::ESCAPE_BOUNCE_FACTOR;
             if x > fd && x < (world.width - fd) && y > fd && y < (world.height - fd) {
                 Some((x, y))
             } else {
                 None
             }
-        };
-        (coord, dvts.d_durability)
-    };
-    let (x, y) = escape_coord
+        })
         .unwrap_or_else(|| {
             // cannot detect right escape direction: run away in random one
             let x = gen_range_fuse(rng, fd, world.width - fd, world.width / 2.);

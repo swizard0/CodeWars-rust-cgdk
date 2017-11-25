@@ -234,7 +234,7 @@ impl Progamer {
                         action.group = form.id;
                         GosuClick::Split(form.id)
                     },
-                    Some(Plan { desire: Desire::Nuke { vehicle_id, strike_x, strike_y, }, .. }) => {
+                    Some(Plan { desire: Desire::Nuke { vehicle_id, strike_x, strike_y, .. }, .. }) => {
                         debug!("nuclear strike by vehicle {} in {} of {:?} over ({}, {})",
                                vehicle_id, form.id, form.kind(), strike_x, strike_y);
                         action.action = Some(ActionType::TacticalNuclearStrike);

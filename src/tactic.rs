@@ -18,7 +18,7 @@ pub enum Desire {
     Escape { fx: f64, fy: f64, x: f64, y: f64, danger_coeff: f64, },
     Hunt { fx: f64, fy: f64, x: f64, y: f64, damage: i32, foe: Option<VehicleType>, },
     HurryToDoctor { fx: f64, fy: f64, x: f64, y: f64, sq_dist: f64, },
-    Nuke { vehicle_id: i64, strike_x: f64, strike_y: f64, },
+    Nuke { vehicle_id: i64, fx: f64, fy: f64, strike_x: f64, strike_y: f64, },
     FormationSplit { group_size: usize, forced: bool, },
 }
 
