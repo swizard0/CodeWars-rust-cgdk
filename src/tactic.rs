@@ -1,3 +1,4 @@
+use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::cmp::Ordering;
 use super::rand::Rng;
 use model::VehicleType;
@@ -16,50 +17,68 @@ pub enum Desire {
     Attack { fx: f64, fy: f64, x: f64, y: f64, sq_dist: f64, },
     Escape { fx: f64, fy: f64, x: f64, y: f64, danger_coeff: f64, },
     Hunt { fx: f64, fy: f64, x: f64, y: f64, damage: i32, foe: Option<VehicleType>, },
+    HurryToDoctor { fx: f64, fy: f64, x: f64, y: f64, sq_dist: f64, },
     Nuke { vehicle_id: i64, strike_x: f64, strike_y: f64, },
     FormationSplit { group_size: usize, forced: bool, },
 }
 
+#[derive(PartialEq, Eq)]
+struct PlanQ {
+    id: usize,
+    rnd: u64,
+    plan: Plan,
+}
+
 pub struct Tactic {
-    most_urgent: Option<Plan>,
+    counter: usize,
+    urgent_queue: BinaryHeap<PlanQ>,
+    planq_by_form_id: HashMap<FormationId, usize>,
+    planq_set: HashSet<usize>,
 }
 
 impl Tactic {
     pub fn new() -> Tactic {
         Tactic {
-            most_urgent: None,
+            counter: 0,
+            urgent_queue: BinaryHeap::new(),
+            planq_by_form_id: HashMap::new(),
+            planq_set: HashSet::new(),
         }
     }
 
     pub fn plan<R>(&mut self, rng: &mut R, plan: Plan) where R: Rng {
-        self.most_urgent = Some(if let Some(current) = self.most_urgent.take() {
-            match current.cmp(&plan) {
-                Ordering::Less =>
-                    plan,
-                Ordering::Greater =>
-                    current,
-                Ordering::Equal =>
-                    if rng.gen() {
-                        plan
-                    } else {
-                        current
-                    },
-            }
-        } else {
-            plan
-        });
+        self.counter += 1;
+        let form_id = plan.form_id;
+        let planq = PlanQ {
+            id: self.counter,
+            rnd: rng.gen(),
+            plan,
+        };
+        self.urgent_queue.push(planq);
+        self.planq_by_form_id.insert(form_id, self.counter);
+        self.planq_set.insert(self.counter);
     }
 
     pub fn most_urgent(&mut self) -> Option<Plan> {
-        let plan = self.most_urgent.take();
-        if plan.is_some() {
-            debug!("most urgent plan: {:?}", plan);
+        while let Some(planq) = self.urgent_queue.pop() {
+            if self.planq_set.remove(&planq.id) {
+                debug!("most urgent plan: {:?}", planq.plan);
+                return Some(planq.plan);
+            }
         }
-        plan
+        None
     }
 
     pub fn clear(&mut self) {
-        self.most_urgent = None;
+        self.urgent_queue.clear();
+        self.planq_by_form_id.clear();
+        self.planq_set.clear();
+    }
+
+    pub fn cancel(&mut self, form_id: FormationId) {
+        if let Some(planq_id) = self.planq_by_form_id.remove(&form_id) {
+            self.planq_set.remove(&planq_id);
+        }
     }
 }
 
@@ -80,6 +99,13 @@ impl Ord for Plan {
             (&Desire::Nuke { .. }, _) =>
                 Ordering::Greater,
             (_, &Desire::Nuke { .. }) =>
+                Ordering::Less,
+
+            (&Desire::HurryToDoctor { sq_dist: d_a, .. }, &Desire::HurryToDoctor { sq_dist: d_b, .. }) =>
+                d_a.partial_cmp(&d_b).unwrap(),
+            (&Desire::HurryToDoctor { .. }, _) =>
+                Ordering::Greater,
+            (_, &Desire::HurryToDoctor { .. }) =>
                 Ordering::Less,
 
             (&Desire::FormationSplit { forced: true, .. }, &Desire::FormationSplit { forced: true, .. }) =>
@@ -116,6 +142,31 @@ impl Ord for Plan {
     }
 }
 
+impl PartialOrd for Plan {
+    fn partial_cmp(&self, other: &Plan) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for PlanQ {
+    fn cmp(&self, other: &PlanQ) -> Ordering {
+        match self.plan.cmp(&other.plan) {
+            Ordering::Less =>
+                Ordering::Less,
+            Ordering::Greater =>
+                Ordering::Greater,
+            Ordering::Equal =>
+                self.rnd.cmp(&other.rnd),
+        }
+    }
+}
+
+impl PartialOrd for PlanQ {
+    fn partial_cmp(&self, other: &PlanQ) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 fn compare_vehicle_types(k_a: &Option<VehicleType>, k_b: &Option<VehicleType>) -> Ordering {
     match (k_a, k_b) {
         // best for fast movements: fighter
@@ -149,12 +200,6 @@ fn compare_vehicle_types(k_a: &Option<VehicleType>, k_b: &Option<VehicleType>) -
         // everything else is really bad for fast movements
         _ =>
             Ordering::Equal,
-    }
-}
-
-impl PartialOrd for Plan {
-    fn partial_cmp(&self, other: &Plan) -> Option<Ordering> {
-        Some(self.cmp(other))
     }
 }
 

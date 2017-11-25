@@ -44,11 +44,15 @@ pub enum Cry {
         fx: f64,
         fy: f64,
     },
-    ComeHuntHim {
-        fx: f64,
-        fy: f64,
-        damage: i32,
-        foe: Option<FoeFormation>,
+    ComeHuntHim { fx: f64, fy: f64, damage: i32, foe: Option<FoeFormation>, },
+    NeedDoctor { form_id: FormationId, fx: f64, fy: f64, },
+    ReadyToHeal {
+        recipient: FormationId,
+        healer_form_id: FormationId,
+        healer_fx: f64,
+        healer_fy: f64,
+        ill_fx: f64,
+        ill_fy: f64,
     },
 }
 
@@ -119,7 +123,7 @@ impl Atsral {
                     self.old_cries.push(cry),
                 Cry::ReadyToHunt { form_id, kind, fx, fy, } =>
                     self.hunter_loc.push(WeakestFoe { form_id, fx, fy, kind, nearest: None, damage: 0, }),
-                Cry::ReadyToHelp { recipient, .. } | Cry::ComePunishThem { recipient, .. } => {
+                Cry::ReadyToHelp { recipient, .. } | Cry::ComePunishThem { recipient, .. } | Cry::ReadyToHeal { recipient, .. } => {
                     let inbox = self.resps
                         .entry(recipient)
                         .or_insert_with(Vec::new);
@@ -127,6 +131,8 @@ impl Atsral {
                 },
                 Cry::ComeHuntHim { .. } =>
                     unreachable!(),
+                Cry::NeedDoctor { .. } =>
+                    self.old_cries.push(cry),
             }
         }
 

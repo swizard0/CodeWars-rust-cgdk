@@ -4,6 +4,26 @@ pub fn sq_dist(fx: f64, fy: f64, x: f64, y: f64) -> f64 {
     ((x - fx) * (x - fx)) + ((y - fy) * (y - fy))
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum VehicleForm {
+    Aircraft,
+    Ground,
+}
+
+impl VehicleForm {
+    pub fn check(form: &Option<VehicleType>) -> Option<VehicleForm> {
+        match form {
+            &Some(VehicleType::Fighter) | &Some(VehicleType::Helicopter) =>
+                Some(VehicleForm::Aircraft),
+            &Some(VehicleType::Arrv) | &Some(VehicleType::Ifv) | &Some(VehicleType::Tank) =>
+                Some(VehicleForm::Ground),
+            &None =>
+                None,
+        }
+    }
+}
+
+
 #[derive(Clone, Debug)]
 pub struct CombatInfo {
     pub attack_range: f64,
