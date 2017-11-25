@@ -84,8 +84,8 @@ impl Progamer {
                                 }
                             },
                             (Some(ActionType::Move), &mut Some(Plan { desire: Desire::Attack { fx, fy, ref mut x, ref mut y, .. }, .. })) => {
-                                debug!("correcting attack move {} of {:?}: ({}, {}) -> ({}, {}) -- colliding with {} of {:?}",
-                                       form_id, kind, x, y, new_x, new_y, collide_form_id, collide_kind);
+                                debug!("correcting attack move {} of {:?} density {}: ({}, {}) -> ({}, {}) -- colliding with {} of {:?} density {}",
+                                       form_id, kind, density, x, y, new_x, new_y, collide_form_id, collide_kind, collide_density);
                                 *x = new_x;
                                 *y = new_y;
                                 action.x = new_x - fx;
@@ -95,8 +95,8 @@ impl Progamer {
                                 }
                             },
                             (Some(ActionType::Move), &mut Some(Plan { desire: Desire::Escape { fx, fy, ref mut x, ref mut y, .. }, .. })) => {
-                                debug!("correcting escape move {} of {:?}: ({}, {}) -> ({}, {}) -- colliding with {} of {:?}",
-                                       form_id, kind, x, y, new_x, new_y, collide_form_id, collide_kind);
+                                debug!("correcting escape move {} of {:?} density {}: ({}, {}) -> ({}, {}) -- colliding with {} of {:?} density {}",
+                                       form_id, kind, density, x, y, new_x, new_y, collide_form_id, collide_kind, collide_density);
                                 *x = new_x;
                                 *y = new_y;
                                 action.x = new_x - fx;
