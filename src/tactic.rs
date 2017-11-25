@@ -11,7 +11,6 @@ pub struct Plan {
 #[derive(PartialEq, Debug)]
 pub enum Desire {
     ScoutTo { fx: f64, fy: f64, x: f64, y: f64, kind: Option<VehicleType>, sq_dist: f64, },
-    Compact { fx: f64, fy: f64, kind: Option<VehicleType>, density: f64, },
     Attack { fx: f64, fy: f64, x: f64, y: f64, sq_dist: f64, },
     Escape { fx: f64, fy: f64, x: f64, y: f64, danger_coeff: f64, },
     Hunt { fx: f64, fy: f64, x: f64, y: f64, damage: i32, foe: Option<VehicleType>, },
@@ -81,13 +80,6 @@ impl Ord for Plan {
             (&Desire::ScoutTo { .. }, _) =>
                 Ordering::Greater,
             (_, &Desire::ScoutTo { .. }) =>
-                Ordering::Less,
-
-            (&Desire::Compact { kind: ref k_a, density: d_a, .. }, &Desire::Compact { kind: ref k_b, density: d_b, .. }) =>
-                d_b.partial_cmp(&d_a).unwrap().then_with(|| compare_vehicle_types(k_a, k_b)),
-            (&Desire::Compact { .. }, _) =>
-                Ordering::Greater,
-            (_, &Desire::Compact { .. }) =>
                 Ordering::Less,
 
             (&Desire::FormationSplit { group_size: s_a, }, &Desire::FormationSplit { group_size: s_b, }) =>
@@ -174,40 +166,6 @@ mod test {
             Plan {
                 form_id: 2, tick: 0,
                 desire: Desire::ScoutTo { fx: 10., fy: 10., x: 15., y: 15., kind: Some(VehicleType::Fighter), sq_dist: 50., },
-            }
-        ).form_id, 2);
-    }
-
-    #[test]
-    fn compact() {
-        assert_eq!(max(
-            Plan {
-                form_id: 1, tick: 0,
-                desire: Desire::Compact { fx: 10., fy: 10., kind: Some(VehicleType::Ifv), density: 0.4, },
-            },
-            Plan {
-                form_id: 2, tick: 0,
-                desire: Desire::Compact { fx: 10., fy: 10., kind: Some(VehicleType::Ifv), density: 0.01, },
-            }
-        ).form_id, 2);
-        assert_eq!(max(
-            Plan {
-                form_id: 1, tick: 0,
-                desire: Desire::Compact { fx: 10., fy: 10., kind: Some(VehicleType::Fighter), density: 0.01, },
-            },
-            Plan {
-                form_id: 2, tick: 0,
-                desire: Desire::Compact { fx: 10., fy: 10., kind: Some(VehicleType::Ifv), density: 0.01, },
-            }
-        ).form_id, 1);
-        assert_eq!(max(
-            Plan {
-                form_id: 1, tick: 0,
-                desire: Desire::FormationSplit { group_size: 100, },
-            },
-            Plan {
-                form_id: 2, tick: 0,
-                desire: Desire::Compact { fx: 10., fy: 10., kind: Some(VehicleType::Fighter), density: 0.01, },
             }
         ).form_id, 2);
     }

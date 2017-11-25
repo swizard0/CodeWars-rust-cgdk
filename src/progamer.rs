@@ -147,14 +147,6 @@ impl Progamer {
                         action.y = y - fy;
                         GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
                     },
-                    Some(Plan { desire: Desire::Compact { fx, fy, density, .. }, .. }) => {
-                        debug!("compact formation {} of {:?} density {}", form.id, form.kind(), density);
-                        action.action = Some(ActionType::Scale);
-                        action.x = fx;
-                        action.y = fy;
-                        action.factor = 0.1;
-                        GosuClick::NothingInteresting
-                    },
                     Some(Plan { desire: Desire::Attack { fx, fy, x, y, .. }, .. }) => {
                         debug!("attack formation {} of {:?} aiming ({}, {})", form.id, form.kind(), x, y);
                         action.action = Some(ActionType::Move);

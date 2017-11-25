@@ -181,7 +181,6 @@ pub fn basic_insticts<'a, R>(
     enum Reaction {
         KeepOn,
         GoCurious,
-        CloseRanks,
         Scatter,
         RunAway,
         YellForHelp { fx: f64, fy: f64, escape_x: f64, escape_y: f64, },
@@ -213,38 +212,33 @@ pub fn basic_insticts<'a, R>(
         // we are not moving and also don't have a plan: let's do something
         (&mut None, Trigger::Idle) =>
             Reaction::GoCurious,
-        // we are currently making formation more compact and eventually stopped: let's continue with something useful
-        (&mut Some(Plan { desire: Desire::Compact { .. }, .. }), Trigger::Idle) =>
-            Reaction::GoCurious,
         // we are currently scattering and eventually stopped: let's continue with something useful
         (&mut Some(Plan { desire: Desire::FormationSplit { .. }, .. }), Trigger::Idle) =>
             Reaction::GoCurious,
-        // we are currently scouting and eventually stopped: maybe we should make formation more compact
+        // we are currently scouting and eventually stopped: maybe we should do something useful
         (&mut Some(Plan { desire: Desire::ScoutTo { .. }, .. }), Trigger::Idle) =>
-            Reaction::CloseRanks,
+            Reaction::Scatter,
         // we are currently attacking and also not moving: do something more useful
         (&mut Some(Plan { desire: Desire::Attack { .. }, .. }), Trigger::Idle) =>
-            Reaction::CloseRanks,
+            Reaction::Scatter,
         // we are currently hunting and also not moving: do something more useful
         (&mut Some(Plan { desire: Desire::Hunt { .. }, .. }), Trigger::Idle) =>
-            Reaction::CloseRanks,
+            Reaction::Scatter,
         // we are currently escaping and eventually stopped: looks like we are safe, so go ahead do something
         (&mut Some(Plan { desire: Desire::Escape { .. }, ..}), Trigger::Idle) =>
-            Reaction::CloseRanks,
+            Reaction::Scatter,
     };
 
     // apply some post checks and maybe change reaction
     loop {
         match reaction {
-            // ensure that we really need to make formation more compact
-            Reaction::CloseRanks => if form.bounding_box().density < consts::COMPACT_DENSITY {
-                break;
-            } else {
-                reaction = Reaction::Scatter;
-            },
             // ensure that we really need to scatter
-            Reaction::Scatter if forms_count >= consts::SPLIT_MAX_FORMS =>
-                reaction = Reaction::GoCurious,
+            Reaction::Scatter =>
+                if forms_count < consts::SPLIT_MAX_FORMS || form.bounding_box().density < consts::COMPACT_DENSITY {
+                    break;
+                } else {
+                    reaction = Reaction::GoCurious;
+                },
             // keep on with current reaction
             _ =>
                 break,
@@ -256,8 +250,6 @@ pub fn basic_insticts<'a, R>(
             (),
         Reaction::GoCurious =>
             scout(form, world, tactic, rng),
-        Reaction::CloseRanks =>
-            compact(form, world, tactic),
         Reaction::Scatter =>
             scatter(form, world, tactic),
         Reaction::RunAway =>
@@ -300,23 +292,6 @@ fn scout<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, 
             fx, fy, x, y,
             kind: form.kind().clone(),
             sq_dist: sq_dist(fx, fy, x, y),
-        },
-    });
-}
-
-fn compact<'a>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic) {
-    let (fx, fy, density) = {
-        let bbox = form.bounding_box();
-        ((bbox.left + bbox.right) / 2.,
-         (bbox.top + bbox.bottom) / 2.,
-         bbox.density)
-    };
-    tactic.plan(Plan {
-        form_id: form.id,
-        tick: world.tick_index,
-        desire: Desire::Compact {
-            fx, fy, density,
-            kind: form.kind().clone(),
         },
     });
 }
