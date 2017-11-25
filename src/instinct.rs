@@ -315,12 +315,17 @@ fn scout<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, 
     });
 }
 
-fn scatter<'a, R>(form: FormationRef<'a>, world: &World, tactic: &mut Tactic, rng: &mut R) where R: Rng {
+fn scatter<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, rng: &mut R) where R: Rng {
+    let density = {
+        let bbox = form.bounding_box();
+        bbox.density
+    };
     tactic.plan(rng, Plan {
         form_id: form.id,
         tick: world.tick_index,
         desire: Desire::FormationSplit {
             group_size: form.size(),
+            density,
         },
     });
 }

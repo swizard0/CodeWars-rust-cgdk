@@ -38,7 +38,7 @@ impl Progamer {
                     unreachable!()
                 };
 
-                let mut closest_bbox: Option<(f64, f64, f64, FormationId, Option<_>)> = None;
+                let mut closest_bbox: Option<(f64, f64, f64, f64, FormationId, Option<_>, f64)> = None;
                 {
                     // detect possible collisions
                     let mut forms_iter = formations.iter();
@@ -62,19 +62,19 @@ impl Progamer {
                                 if new_x > game.world_width - fd { new_x = game.world_width - fd; }
                                 if new_y < fd { new_y = fd; }
                                 if new_y > game.world_height - fd { new_y = game.world_height - fd; }
-                                closest_bbox = Some((dist_to_obstacle, new_x, new_y, fid, form_kind));
+                                closest_bbox = Some((dist_to_obstacle, new_x, new_y, self_bbox.density, fid, form_kind, bbox.density));
                             }
                         }
                     }
                 }
-                if let Some((_, new_x, new_y, collide_form_id, collide_kind)) = closest_bbox {
+                if let Some((_, new_x, new_y, density, collide_form_id, collide_kind, collide_density)) = closest_bbox {
                     if let Some(mut form) = formations.get_by_id(form_id) {
                         let kind = form.kind().clone();
                         // correct move trajectory
                         match (action.action, form.current_plan()) {
                             (Some(ActionType::Move), &mut Some(Plan { desire: Desire::ScoutTo { fx, fy, ref mut x, ref mut y, .. }, .. })) => {
-                                debug!("correcting scout move {} of {:?}: ({}, {}) -> ({}, {}) -- colliding with {} of {:?}",
-                                       form_id, kind, x, y, new_x, new_y, collide_form_id, collide_kind);
+                                debug!("correcting scout move {} of {:?} density {}: ({}, {}) -> ({}, {}) -- colliding with {} of {:?} density {}",
+                                       form_id, kind, density, x, y, new_x, new_y, collide_form_id, collide_kind, collide_density);
                                 *x = new_x;
                                 *y = new_y;
                                 action.x = new_x - fx;
@@ -169,8 +169,8 @@ impl Progamer {
                         action.y = y - fy;
                         GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
                     },
-                    Some(Plan { desire: Desire::FormationSplit { group_size }, .. }) => {
-                        debug!("splitting formation {} of {} vehicles", form.id, group_size);
+                    Some(Plan { desire: Desire::FormationSplit { group_size, density, }, .. }) => {
+                        debug!("splitting formation {} of {} vehicles, density = {}", form.id, group_size, density);
                         action.action = Some(ActionType::Dismiss);
                         action.group = form.id;
                         GosuClick::Split(form.id)
