@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+use super::rand::Rng;
 use model::VehicleType;
 use super::formation::FormationId;
 
@@ -28,9 +30,20 @@ impl Tactic {
         }
     }
 
-    pub fn plan(&mut self, plan: Plan) {
+    pub fn plan<R>(&mut self, rng: &mut R, plan: Plan) where R: Rng {
         self.most_urgent = Some(if let Some(current) = self.most_urgent.take() {
-            ::std::cmp::max(current, plan)
+            match current.cmp(&plan) {
+                Ordering::Less =>
+                    plan,
+                Ordering::Greater =>
+                    current,
+                Ordering::Equal =>
+                    if rng.gen() {
+                        plan
+                    } else {
+                        current
+                    },
+            }
         } else {
             plan
         });
@@ -46,8 +59,6 @@ impl Tactic {
         self.most_urgent = None;
     }
 }
-
-use std::cmp::Ordering;
 
 impl Eq for Plan { }
 
@@ -199,11 +210,11 @@ mod test {
         assert_eq!(max(
             Plan {
                 form_id: 1, tick: 0,
-                desire: Desire::Hunt { fx: 10., fy: 10., x: 20., y: 20., damage: 200, },
+                desire: Desire::Hunt { fx: 10., fy: 10., x: 20., y: 20., damage: 200, foe: None, },
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::Hunt { fx: 10., fy: 10., x: 15., y: 15., damage: 50, },
+                desire: Desire::Hunt { fx: 10., fy: 10., x: 15., y: 15., damage: 50, foe: None, },
             }
         ).form_id, 1);
         assert_eq!(max(
@@ -213,7 +224,7 @@ mod test {
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::Hunt { fx: 10., fy: 10., x: 15., y: 15., damage: 50, },
+                desire: Desire::Hunt { fx: 10., fy: 10., x: 15., y: 15., damage: 50, foe: None, },
             }
         ).form_id, 2);
     }

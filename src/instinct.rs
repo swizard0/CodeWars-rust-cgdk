@@ -1,5 +1,4 @@
 use super::rand::Rng;
-
 use model::{World, Game};
 use super::consts;
 use super::formation::{FormationId, FormationRef};
@@ -61,7 +60,7 @@ pub fn run<R>(mut form: FormationRef, atsral_fc: &mut AtsralForecast, tactic: &m
                         let bbox = form.bounding_box();
                         (bbox.cx, bbox.cy)
                     };
-                    tactic.plan(Plan {
+                    tactic.plan(rng, Plan {
                         form_id: form.id,
                         tick: config.world.tick_index,
                         desire: Desire::Attack {
@@ -72,7 +71,7 @@ pub fn run<R>(mut form: FormationRef, atsral_fc: &mut AtsralForecast, tactic: &m
                 },
                 AtsralProclaims::GoHunt { fx, fy, damage, foe, } => {
                     if let Some(ff) = foe {
-                        tactic.plan(Plan {
+                        tactic.plan(rng, Plan {
                             form_id: form.id,
                             tick: config.world.tick_index,
                             desire: Desire::Hunt {
@@ -251,7 +250,7 @@ pub fn basic_insticts<'a, R>(
         Reaction::GoCurious =>
             scout(form, world, tactic, rng),
         Reaction::Scatter =>
-            scatter(form, world, tactic),
+            scatter(form, world, tactic, rng),
         Reaction::RunAway =>
             run_away(form, world, tactic, rng),
         Reaction::YellForHelp { fx, fy, escape_x, escape_y, } =>
@@ -285,7 +284,7 @@ fn scout<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, 
     if y < fd { y = fd; }
     if y > world.height - fd { y = world.height - fd; }
 
-    tactic.plan(Plan {
+    tactic.plan(rng, Plan {
         form_id: form.id,
         tick: world.tick_index,
         desire: Desire::ScoutTo {
@@ -296,8 +295,8 @@ fn scout<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, 
     });
 }
 
-fn scatter<'a>(form: FormationRef<'a>, world: &World, tactic: &mut Tactic) {
-    tactic.plan(Plan {
+fn scatter<'a, R>(form: FormationRef<'a>, world: &World, tactic: &mut Tactic, rng: &mut R) where R: Rng {
+    tactic.plan(rng, Plan {
         form_id: form.id,
         tick: world.tick_index,
         desire: Desire::FormationSplit {
@@ -335,7 +334,7 @@ fn run_away<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tacti
             let y = rng.gen_range(fd, world.height - fd);
             (x, y)
         });
-    tactic.plan(Plan {
+    tactic.plan(rng, Plan {
         form_id: form.id,
         tick: world.tick_index,
         desire: Desire::Escape {
