@@ -113,9 +113,9 @@ fn listen_to_atsral<'a>(form: &mut FormationRef<'a>, game: &Game, atsral: &mut A
                 let dist_ratio = sq_dist_to_helper as f64 / sq_dist_to_escape as f64;
                 if best_helper.as_ref().map(|&(dratio, rdmg, _, _, _)| {
                     if dist_ratio < consts::HELPER_BY_ESCAPE_DIST_RATIO_SQ && dratio < consts::HELPER_BY_ESCAPE_DIST_RATIO_SQ {
-                        real_damage > rdmg
+                        (real_damage > rdmg) || (real_damage == rdmg && dist_ratio < dratio)
                     } else if dist_ratio >= consts::HELPER_BY_ESCAPE_DIST_RATIO_SQ && dratio >= consts::HELPER_BY_ESCAPE_DIST_RATIO_SQ {
-                        real_damage > rdmg
+                        (real_damage > rdmg) || (real_damage == rdmg && dist_ratio < dratio)
                     } else if dist_ratio < consts::HELPER_BY_ESCAPE_DIST_RATIO_SQ && dratio >= consts::HELPER_BY_ESCAPE_DIST_RATIO_SQ {
                         true
                     } else {
