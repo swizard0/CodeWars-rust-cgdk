@@ -162,6 +162,10 @@ impl<'a> FormationRef<'a> {
     pub fn random_vehicle_id<R>(&self, rng: &mut R) -> i64 where R: Rng {
         rng.choose(&self.form.vehicles).cloned().unwrap()
     }
+
+    pub fn health(&self) -> (i32, i32) {
+        (self.form.dur_cur, self.form.dur_max)
+    }
 }
 
 pub struct FormationBuilder<'a> {
@@ -210,6 +214,8 @@ struct Formation {
     stuck: bool,
     current_plan: Option<Plan>,
     dvt_s: Derivatives,
+    dur_max: i32,
+    dur_cur: i32,
 }
 
 enum UpdateResult {
@@ -229,11 +235,15 @@ impl Formation {
             stuck: false,
             current_plan: None,
             dvt_s: Derivatives::new(),
+            dur_max: 0,
+            dur_cur: 0,
         }
     }
 
     fn add(&mut self, vehicle: &Vehicle) {
         self.vehicles.push(vehicle.id);
+        self.dur_max += vehicle.durability;
+        self.dur_cur += vehicle.durability;
     }
 
     fn update(&mut self, unit: &mut Unit, update: &VehicleUpdate, tick: i32) -> UpdateResult {
@@ -241,6 +251,8 @@ impl Formation {
         unit.dvt.d_x = update.x - unit.vehicle.x;
         unit.dvt.d_y = update.y - unit.vehicle.y;
         unit.dvt.d_durability = update.durability - unit.vehicle.durability;
+        // acc updates
+        self.dur_cur += update.durability - unit.vehicle.durability;
         // absolutes
         unit.vehicle.x = update.x;
         unit.vehicle.y = update.y;
@@ -332,16 +344,16 @@ impl Formation {
         *counter += 1;
         let id_b = *counter;
 
-        let mut vehicles_a = Vec::with_capacity(self.vehicles.len());
-        let mut vehicles_b = Vec::with_capacity(self.vehicles.len());
+        let mut form_a = Formation::new(self.kind.clone(), self.update_tick);
+        let mut form_b = Formation::new(self.kind.clone(), self.update_tick);
         for vehicle_id in self.vehicles {
             if let Some(unit) = by_vehicle_id.get_mut(&vehicle_id) {
                 if rect_a.inside(unit.vehicle.x, unit.vehicle.y) {
                     unit.form_id = id_a;
-                    vehicles_a.push(vehicle_id);
+                    form_a.add(&unit.vehicle);
                 } else if rect_b.inside(unit.vehicle.x, unit.vehicle.y) {
                     unit.form_id = id_b;
-                    vehicles_b.push(vehicle_id);
+                    form_b.add(&unit.vehicle);
                 } else {
                     panic!("something wrong: vehicle id = {} not in formation bounding box: {:?}", vehicle_id, bbox);
                 }
@@ -349,27 +361,6 @@ impl Formation {
                 panic!("something wrong: vehicle id = {} in formation, but no unit in formation dict", vehicle_id);
             }
         }
-
-        let form_a = Formation {
-            kind: self.kind.clone(),
-            vehicles: vehicles_a,
-            bbox: None,
-            update_tick: self.update_tick,
-            bound: false,
-            stuck: false,
-            current_plan: None,
-            dvt_s: Derivatives::new(),
-        };
-        let form_b = Formation {
-            kind: self.kind.clone(),
-            vehicles: vehicles_b,
-            bbox: None,
-            update_tick: self.update_tick,
-            bound: false,
-            stuck: false,
-            current_plan: None,
-            dvt_s: Derivatives::new(),
-        };
 
         ((id_a, form_a), (id_b, form_b))
     }

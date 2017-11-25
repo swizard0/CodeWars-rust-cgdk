@@ -161,28 +161,28 @@ impl Progamer {
                 // case A: formation is selected and bound -- just continue with the plan
                 match *form.current_plan() {
                     Some(Plan { desire: Desire::ScoutTo { fx, fy, x, y, .. }, .. }) => {
-                        debug!("scout formation {} of {:?} aiming ({}, {})", form.id, form.kind(), x, y);
+                        debug!("scout formation {} of {:?} w/{:?} aiming ({}, {})", form.id, form.kind(), form.health(), x, y);
                         action.action = Some(ActionType::Move);
                         action.x = x - fx;
                         action.y = y - fy;
                         GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
                     },
                     Some(Plan { desire: Desire::Attack { fx, fy, x, y, .. }, .. }) => {
-                        debug!("attack formation {} of {:?} aiming ({}, {})", form.id, form.kind(), x, y);
+                        debug!("attack formation {} of {:?} w/{:?} aiming ({}, {})", form.id, form.kind(), form.health(), x, y);
                         action.action = Some(ActionType::Move);
                         action.x = x - fx;
                         action.y = y - fy;
                         GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
                     },
                     Some(Plan { desire: Desire::Hunt { fx, fy, x, y, .. }, .. }) => {
-                        debug!("hunt formation {} of {:?} aiming ({}, {})", form.id, form.kind(), x, y);
+                        debug!("hunt formation {} of {:?} w/{:?} aiming ({}, {})", form.id, form.kind(), form.health(), x, y);
                         action.action = Some(ActionType::Move);
                         action.x = x - fx;
                         action.y = y - fy;
                         GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
                     },
                     Some(Plan { desire: Desire::Escape { fx, fy, x, y, danger_coeff }, .. }) => {
-                        debug!("escape formation {} of {:?} danger {} aiming ({}, {})", form.id, form.kind(), danger_coeff, x, y);
+                        debug!("escape formation {} of {:?} w/{:?} danger {} aiming ({}, {})", form.id, form.kind(), form.health(), danger_coeff, x, y);
                         action.action = Some(ActionType::Move);
                         action.x = x - fx;
                         action.y = y - fy;
