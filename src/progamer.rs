@@ -33,6 +33,7 @@ impl Progamer {
                 formations.split(form_id),
             GosuClick::Move { form_id, mut target_x, mut target_y, } => {
                 let (self_bbox, self_kind) = if let Some(mut form) = formations.get_by_id(form_id) {
+                    *form.stuck() = false;
                     (form.bounding_box().clone(), form.kind().clone())
                 } else {
                     unreachable!()
