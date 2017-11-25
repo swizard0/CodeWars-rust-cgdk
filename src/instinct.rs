@@ -293,12 +293,12 @@ fn scout<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, 
         let bbox = form.bounding_box();
         (bbox.cx, bbox.cy, bbox.max_side())
     };
-    let mut x = rng.gen_range(0. - fx, (world.width - fx));
+    let mut x = gen_range_fuse(rng, 0. - fx, world.width - fx, fx);
     x /= consts::SCOUT_RANGE_FACTOR;
     x += fx;
     if x < fd { x = fd; }
     if x > world.width - fd { x = world.width - fd; }
-    let mut y = rng.gen_range(0. - fy, (world.height - fy));
+    let mut y = gen_range_fuse(rng, 0. - fy, world.height - fy, fy);
     y /= consts::SCOUT_RANGE_FACTOR;
     y += fy;
     if y < fd { y = fd; }
@@ -362,4 +362,13 @@ fn run_away<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tacti
             danger_coeff: 0. - (d_durability as f64),
         },
     });
+}
+
+fn gen_range_fuse<R>(rng: &mut R, left: f64, right: f64, fuse: f64) -> f64 where R: Rng {
+    if left < right {
+        rng.gen_range(left, right)
+    } else {
+        error!("something wrong with gen_range({}, {}): using default {}", left, right, fuse);
+        fuse
+    }
 }
