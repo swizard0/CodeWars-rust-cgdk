@@ -161,7 +161,7 @@ impl MyStrategy {
 
 // mine units:
 // pink -- fighters
-// orange --
+// orange -- ifv
 // yellow -- helicopters
-// brown --
+// brown -- arrv
 // red -- tanks
