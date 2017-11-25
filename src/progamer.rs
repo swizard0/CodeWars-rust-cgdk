@@ -187,8 +187,8 @@ impl Progamer {
                         action.y = y - fy;
                         GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
                     },
-                    Some(Plan { desire: Desire::FormationSplit { group_size, density, }, .. }) => {
-                        debug!("splitting formation {} of {} vehicles, density = {}", form.id, group_size, density);
+                    Some(Plan { desire: Desire::FormationSplit { group_size, forced, }, .. }) => {
+                        debug!("splitting ({}) formation {} of {} vehicles", if forced { "forced" } else { "regular" }, form.id, group_size);
                         action.action = Some(ActionType::Dismiss);
                         action.group = form.id;
                         GosuClick::Split(form.id)

@@ -203,7 +203,11 @@ pub fn basic_insticts<'a, R>(
         YellForHunt { fx: f64, fy: f64, },
     }
 
+    let formation_is_stuck = *form.stuck();
     let mut reaction = match (form.current_plan(), trigger) {
+        // looks like we are stuck: force splitting then
+        (_, _) if formation_is_stuck =>
+            Reaction::Scatter,
         // nothing annoying around and we don't have a plan: let's do something
         (&mut None, Trigger::None) =>
             Reaction::GoCurious,
@@ -253,7 +257,7 @@ pub fn basic_insticts<'a, R>(
         match reaction {
             // ensure that we really need to scatter
             Reaction::Scatter =>
-                if forms_count < consts::SPLIT_MAX_FORMS || form.bounding_box().density < consts::COMPACT_DENSITY {
+                if formation_is_stuck || forms_count < consts::SPLIT_MAX_FORMS || form.bounding_box().density < consts::COMPACT_DENSITY {
                     break;
                 } else {
                     reaction = Reaction::GoCurious;
@@ -320,12 +324,21 @@ fn scatter<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic
         let bbox = form.bounding_box();
         bbox.density
     };
+    let forced = if *form.stuck() {
+        *form.stuck() = false;
+        true
+    } else if density < consts::COMPACT_DENSITY {
+        true
+    } else {
+        false
+    };
+
     tactic.plan(rng, Plan {
         form_id: form.id,
         tick: world.tick_index,
         desire: Desire::FormationSplit {
             group_size: form.size(),
-            density,
+            forced,
         },
     });
 }
