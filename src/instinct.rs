@@ -83,8 +83,8 @@ pub fn run<R>(mut form: FormationRef, atsral_fc: &mut AtsralForecast, tactic: &m
                     }
                 },
                 AtsralProclaims::NukeThem { fx, fy, foe_fx, foe_fy, } => {
-                    let strike_x = fx + (foe_fx - fx) * const::NUKE_ENEMY_CLOSENESS;
-                    let strike_y = fy + (foe_fy - fy) * const::NUKE_ENEMY_CLOSENESS;
+                    let strike_x = fx + (foe_fx - fx) * consts::NUKE_ENEMY_CLOSENESS;
+                    let strike_y = fy + (foe_fy - fy) * consts::NUKE_ENEMY_CLOSENESS;
                     let vehicle_id = form.random_vehicle_id(rng);
                     tactic.plan(rng, Plan {
                         form_id: form.id,
