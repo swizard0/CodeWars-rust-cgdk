@@ -350,8 +350,8 @@ fn run_away<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tacti
     let (x, y) = escape_coord
         .unwrap_or_else(|| {
             // cannot detect right escape direction: run away in random one
-            let x = rng.gen_range(fd, world.width - fd);
-            let y = rng.gen_range(fd, world.height - fd);
+            let x = gen_range_fuse(rng, fd, world.width - fd, world.width / 2.);
+            let y = gen_range_fuse(rng, fd, world.height - fd, world.height / 2.);
             (x, y)
         });
     tactic.plan(rng, Plan {
@@ -368,7 +368,7 @@ fn gen_range_fuse<R>(rng: &mut R, left: f64, right: f64, fuse: f64) -> f64 where
     if left < right {
         rng.gen_range(left, right)
     } else {
-        error!("something wrong with gen_range({}, {}): using default {}", left, right, fuse);
+        warn!("something wrong with gen_range({}, {}): using default {}", left, right, fuse);
         fuse
     }
 }
