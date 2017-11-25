@@ -1,5 +1,4 @@
-use model::{ActionType, Action, Player};
-
+use model::{ActionType, Action, Player, Game};
 use super::tactic::{Plan, Desire, Tactic};
 use super::formation::{Formations, FormationId};
 use super::common::{sq_dist, collides};
@@ -23,7 +22,7 @@ impl Progamer {
         }
     }
 
-    pub fn maintain_apm(&mut self, me: &Player, formations: &mut Formations, tactic: &mut Tactic, action: &mut Action) {
+    pub fn maintain_apm(&mut self, me: &Player, formations: &mut Formations, tactic: &mut Tactic, game: &Game, action: &mut Action) {
         if me.remaining_action_cooldown_ticks > 0 {
             return;
         }
@@ -56,7 +55,12 @@ impl Progamer {
                             let dist_to_obstacle =
                                 sq_dist(self_bbox.cx, self_bbox.cy, bbox.cx, bbox.cy);
                             if closest_bbox.as_ref().map(|c| dist_to_obstacle < c.0).unwrap_or(true) {
-                                let (new_x, new_y) = self_bbox.correct_trajectory(bbox);
+                                let (mut new_x, mut new_y) = self_bbox.correct_trajectory(bbox);
+                                let fd = self_bbox.max_side();
+                                if new_x < fd { new_x = fd; }
+                                if new_x > game.world_width - fd { new_x = game.world_width - fd; }
+                                if new_y < fd { new_y = fd; }
+                                if new_y > game.world_height - fd { new_y = game.world_height - fd; }
                                 closest_bbox = Some((dist_to_obstacle, new_x, new_y, form_kind));
                             }
                         }
@@ -74,6 +78,9 @@ impl Progamer {
                                 *y = new_y;
                                 action.x = new_x - fx;
                                 action.y = new_y - fy;
+                                if action.x == 0. && action.y == 0. {
+                                    action.action = None;
+                                }
                             },
                             (Some(ActionType::Move), &mut Some(Plan { desire: Desire::Attack { fx, fy, ref mut x, ref mut y, .. }, .. })) => {
                                 debug!("correcting attack move {} of {:?}: ({}, {}) -> ({}, {}) -- colliding with {:?}",
@@ -82,6 +89,9 @@ impl Progamer {
                                 *y = new_y;
                                 action.x = new_x - fx;
                                 action.y = new_y - fy;
+                                if action.x == 0. && action.y == 0. {
+                                    action.action = None;
+                                }
                             },
                             (Some(ActionType::Move), &mut Some(Plan { desire: Desire::Escape { fx, fy, ref mut x, ref mut y, .. }, .. })) => {
                                 debug!("correcting escape move {} of {:?}: ({}, {}) -> ({}, {}) -- colliding with {:?}",
@@ -90,6 +100,9 @@ impl Progamer {
                                 *y = new_y;
                                 action.x = new_x - fx;
                                 action.y = new_y - fy;
+                                if action.x == 0. && action.y == 0. {
+                                    action.action = None;
+                                }
                             },
                             _ =>
                                 (),

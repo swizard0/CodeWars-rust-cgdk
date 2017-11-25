@@ -77,7 +77,7 @@ impl Strategy for MyStrategy {
         }
         self.update_formations(me, world);
         self.run_instinct(world, game);
-        self.progamer.maintain_apm(me, &mut self.allies, &mut self.tactic, action);
+        self.progamer.maintain_apm(me, &mut self.allies, &mut self.tactic, game, action);
     }
 }
 
