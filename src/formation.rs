@@ -147,6 +147,10 @@ impl<'a> FormationRef<'a> {
         &mut self.form.bound
     }
 
+    pub fn stuck(&mut self) -> &mut bool {
+        &mut self.form.stuck
+    }
+
     pub fn kind(&self) -> &Option<VehicleType> {
         &self.form.kind
     }
@@ -203,6 +207,7 @@ struct Formation {
     bbox: Option<Rect>,
     update_tick: i32,
     bound: bool,
+    stuck: bool,
     current_plan: Option<Plan>,
     dvt_s: Derivatives,
 }
@@ -221,6 +226,7 @@ impl Formation {
             bbox: None,
             update_tick: tick,
             bound: false,
+            stuck: false,
             current_plan: None,
             dvt_s: Derivatives::new(),
         }
@@ -350,6 +356,7 @@ impl Formation {
             bbox: None,
             update_tick: self.update_tick,
             bound: false,
+            stuck: false,
             current_plan: None,
             dvt_s: Derivatives::new(),
         };
@@ -359,6 +366,7 @@ impl Formation {
             bbox: None,
             update_tick: self.update_tick,
             bound: false,
+            stuck: false,
             current_plan: None,
             dvt_s: Derivatives::new(),
         };

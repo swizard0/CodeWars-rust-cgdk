@@ -31,83 +31,101 @@ impl Progamer {
                 (),
             GosuClick::Split(form_id) =>
                 formations.split(form_id),
-            GosuClick::Move { form_id, target_x, target_y, } => {
+            GosuClick::Move { form_id, mut target_x, mut target_y, } => {
                 let (self_bbox, self_kind) = if let Some(mut form) = formations.get_by_id(form_id) {
                     (form.bounding_box().clone(), form.kind().clone())
                 } else {
                     unreachable!()
                 };
 
-                let mut closest_bbox: Option<(f64, f64, f64, f64, FormationId, Option<_>, f64)> = None;
-                {
-                    // detect possible collisions
-                    let mut forms_iter = formations.iter();
-                    while let Some(mut form) = forms_iter.next() {
-                        let form_kind = form.kind().clone();
-                        let fid = form.id;
-                        if fid == form_id {
-                            continue;
-                        }
-                        if !collides(&self_kind, &form_kind) {
-                            continue;
-                        }
-                        let bbox = form.bounding_box();
-                        if self_bbox.predict_collision(target_x, target_y, bbox) {
-                            let dist_to_obstacle =
-                                sq_dist(self_bbox.cx, self_bbox.cy, bbox.cx, bbox.cy);
-                            if closest_bbox.as_ref().map(|c| dist_to_obstacle < c.0).unwrap_or(true) {
-                                let (mut new_x, mut new_y) = self_bbox.correct_trajectory(bbox);
-                                let fd = self_bbox.max_side();
-                                if new_x < fd { new_x = fd; }
-                                if new_x > game.world_width - fd { new_x = game.world_width - fd; }
-                                if new_y < fd { new_y = fd; }
-                                if new_y > game.world_height - fd { new_y = game.world_height - fd; }
-                                closest_bbox = Some((dist_to_obstacle, new_x, new_y, self_bbox.density, fid, form_kind, bbox.density));
+                let mut second_pass = false;
+                loop {
+                    let mut closest_bbox: Option<(f64, f64, f64, f64, FormationId, Option<_>, f64)> = None;
+                    {
+                        // detect possible collisions
+                        let mut forms_iter = formations.iter();
+                        while let Some(mut form) = forms_iter.next() {
+                            let form_kind = form.kind().clone();
+                            let fid = form.id;
+                            if fid == form_id {
+                                continue;
+                            }
+                            if !collides(&self_kind, &form_kind) {
+                                continue;
+                            }
+                            let bbox = form.bounding_box();
+                            if self_bbox.predict_collision(target_x, target_y, bbox) {
+                                let dist_to_obstacle =
+                                    sq_dist(self_bbox.cx, self_bbox.cy, bbox.cx, bbox.cy);
+                                if closest_bbox.as_ref().map(|c| dist_to_obstacle < c.0).unwrap_or(true) {
+                                    let (new_x, new_y) = self_bbox.correct_trajectory(bbox);
+                                    closest_bbox = Some((dist_to_obstacle, new_x, new_y, self_bbox.density, fid, form_kind, bbox.density));
+                                }
                             }
                         }
                     }
-                }
-                if let Some((_, new_x, new_y, density, collide_form_id, collide_kind, collide_density)) = closest_bbox {
-                    if let Some(mut form) = formations.get_by_id(form_id) {
-                        let kind = form.kind().clone();
-                        // correct move trajectory
-                        match (action.action, form.current_plan()) {
-                            (Some(ActionType::Move), &mut Some(Plan { desire: Desire::ScoutTo { fx, fy, ref mut x, ref mut y, .. }, .. })) => {
-                                debug!("correcting scout move {} of {:?} density {}: ({}, {}) -> ({}, {}) -- colliding with {} of {:?} density {}",
-                                       form_id, kind, density, x, y, new_x, new_y, collide_form_id, collide_kind, collide_density);
+                    if let Some((_, new_x, new_y, density, collide_form_id, collide_kind, collide_density)) = closest_bbox {
+                        if let Some(mut form) = formations.get_by_id(form_id) {
+                            let kind = form.kind().clone();
+                            if second_pass {
+                                debug!("seems like formation {} of {:?} is stuck: cancelling the move", form_id, kind);
+                                action.action = None;
+                                *form.stuck() = true;
+                                break;
+                            } else {
+                                // correct move trajectory
+                                let (fx, fy, x, y, move_name) =
+                                    match (action.action, form.current_plan()) {
+                                        (Some(ActionType::Move), &mut Some(Plan { desire: Desire::ScoutTo { fx, fy, ref mut x, ref mut y, .. }, .. })) =>
+                                            (fx, fy, x, y, "scout"),
+                                        (Some(ActionType::Move), &mut Some(Plan { desire: Desire::Attack { fx, fy, ref mut x, ref mut y, .. }, .. })) =>
+                                            (fx, fy, x, y, "attack"),
+                                        (Some(ActionType::Move), &mut Some(Plan { desire: Desire::Escape { fx, fy, ref mut x, ref mut y, .. }, .. })) =>
+                                            (fx, fy, x, y, "escape"),
+                                        (Some(ActionType::Move), &mut Some(Plan { desire: Desire::Hunt { fx, fy, ref mut x, ref mut y, .. }, .. })) =>
+                                            (fx, fy, x, y, "hunt"),
+                                        (.., &mut None) =>
+                                            break,
+                                        (.., &mut Some(Plan { desire: Desire::Nuke { .. }, .. })) =>
+                                            break,
+                                        (.., &mut Some(Plan { desire: Desire::FormationSplit { .. }, .. })) =>
+                                            break,
+                                        (.., &mut Some(Plan { desire: Desire::ScoutTo { .. }, .. })) =>
+                                            break,
+                                        (.., &mut Some(Plan { desire: Desire::Attack { .. }, .. })) =>
+                                            break,
+                                        (.., &mut Some(Plan { desire: Desire::Escape { .. }, .. })) =>
+                                            break,
+                                        (.., &mut Some(Plan { desire: Desire::Hunt { .. }, .. })) =>
+                                            break,
+                                    };
+                                debug!("correcting {} move {} of {:?} density {}: ({}, {}) -> ({}, {}) -- colliding with {} of {:?} density {}",
+                                       move_name, form_id, kind, density, x, y, new_x, new_y, collide_form_id, collide_kind, collide_density);
                                 *x = new_x;
                                 *y = new_y;
+                                target_x = new_x;
+                                target_y = new_y;
                                 action.x = new_x - fx;
                                 action.y = new_y - fy;
-                                if action.x == 0. && action.y == 0. {
-                                    action.action = None;
-                                }
-                            },
-                            (Some(ActionType::Move), &mut Some(Plan { desire: Desire::Attack { fx, fy, ref mut x, ref mut y, .. }, .. })) => {
-                                debug!("correcting attack move {} of {:?} density {}: ({}, {}) -> ({}, {}) -- colliding with {} of {:?} density {}",
-                                       form_id, kind, density, x, y, new_x, new_y, collide_form_id, collide_kind, collide_density);
-                                *x = new_x;
-                                *y = new_y;
-                                action.x = new_x - fx;
-                                action.y = new_y - fy;
-                                if action.x == 0. && action.y == 0. {
-                                    action.action = None;
-                                }
-                            },
-                            (Some(ActionType::Move), &mut Some(Plan { desire: Desire::Escape { fx, fy, ref mut x, ref mut y, .. }, .. })) => {
-                                debug!("correcting escape move {} of {:?} density {}: ({}, {}) -> ({}, {}) -- colliding with {} of {:?} density {}",
-                                       form_id, kind, density, x, y, new_x, new_y, collide_form_id, collide_kind, collide_density);
-                                *x = new_x;
-                                *y = new_y;
-                                action.x = new_x - fx;
-                                action.y = new_y - fy;
-                                if action.x == 0. && action.y == 0. {
-                                    action.action = None;
-                                }
-                            },
-                            _ =>
-                                (),
+                            }
+                            let fd = self_bbox.max_side();
+                            if (new_x < fd) ||
+                                (new_x > game.world_width - fd) ||
+                                (new_y < fd) ||
+                                (new_y > game.world_height - fd) ||
+                                (action.x == 0. && action.y == 0.)
+                            {
+                                debug!("seems like formation {} of {:?} is stuck: cancelling the move", form_id, kind);
+                                action.action = None;
+                                *form.stuck() = true;
+                                break;
+                            }
+                            second_pass = true;
+                        } else {
+                            unreachable!()
                         }
+                    } else {
+                        break;
                     }
                 }
             },

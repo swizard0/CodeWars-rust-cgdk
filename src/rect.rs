@@ -145,4 +145,56 @@ mod test {
         assert_eq!(target_y, 13.);
         assert_eq!(rb.predict_collision(target_x, target_y, &ra), false);
     }
+
+    #[test]
+    fn correct_trajectory_a() {
+        let me = Rect {
+            left: 29.,
+            top: 81.97561338236046,
+            right: 57.,
+            bottom: 139.97561338236045,
+            cx: 43.,
+            cy: 110.97561338236036,
+            density: 0.386895646993817,
+        };
+        let obstacle = Rect {
+            left: 59.,
+            top: 81.97561338236046,
+            right: 87.,
+            bottom: 139.97561338236045,
+            cx: 73.,
+            cy: 110.97561338236035,
+            density: 0.386895646993817,
+        };
+        assert_eq!(me.predict_collision(487.4579573974935, 493.33292266981744, &obstacle), true);
+        let (target_x, target_y) = me.correct_trajectory(&obstacle);
+        assert_eq!(me.predict_collision(target_x, target_y, &obstacle), false);
+    }
+
+    #[test]
+    fn correct_trajectory_b() {
+        let me = Rect {
+            left: 164.,
+            top: 164.,
+            right: 222.,
+            bottom: 222.,
+            cx: 193.,
+            cy: 193.,
+            density: 0.37355441778713294,
+        };
+        let obstacle = Rect {
+            left: 164.,
+            top: 90.,
+            right: 222.,
+            bottom: 148.,
+            cx: 193.,
+            cy: 119.,
+            density: 0.37355441778713294,
+        };
+        assert_eq!(me.predict_collision(207.04910379187322, 144.59873458304605, &obstacle), true);
+        let (target_x, target_y) = me.correct_trajectory(&obstacle);
+        assert_eq!(me.predict_collision(target_x, target_y, &obstacle), false);
+        println!(" ;; qq = {}, {}", target_x, target_y);
+        assert_eq!(me.predict_collision(193., 201.02438661763952, &obstacle), false);
+    }
 }
