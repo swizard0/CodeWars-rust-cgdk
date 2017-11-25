@@ -256,12 +256,15 @@ pub fn basic_insticts<'a, R>(
     loop {
         match reaction {
             // ensure that we really need to scatter
-            Reaction::Scatter =>
+            Reaction::Scatter => {
                 if formation_is_stuck || forms_count < consts::SPLIT_MAX_FORMS || form.bounding_box().density < consts::COMPACT_DENSITY {
-                    break;
-                } else {
-                    reaction = Reaction::GoCurious;
-                },
+                    // do not split extremely small formations
+                    if form.size() > 1 {
+                        break;
+                    }
+                }
+                reaction = Reaction::GoCurious;
+            },
             // keep on with current reaction
             _ =>
                 break,
