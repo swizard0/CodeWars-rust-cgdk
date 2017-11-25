@@ -53,7 +53,9 @@ impl Tactic {
 
     pub fn most_urgent(&mut self) -> Option<Plan> {
         let plan = self.most_urgent.take();
-        debug!("most urgent plan: {:?}", plan);
+        if plan.is_some() {
+            debug!("most urgent plan: {:?}", plan);
+        }
         plan
     }
 
