@@ -253,22 +253,23 @@ pub fn basic_insticts<'a, R>(
     };
 
     // apply some post checks and maybe change reaction
-    loop {
-        match reaction {
-            // ensure that we really need to scatter
-            Reaction::Scatter => {
-                if formation_is_stuck || forms_count < consts::SPLIT_MAX_FORMS || form.bounding_box().density < consts::COMPACT_DENSITY {
-                    // do not split extremely small formations
-                    if form.size() > 1 {
-                        break;
-                    }
+    match reaction {
+        // ensure that we really need to scatter
+        Reaction::Scatter =>
+            reaction = if formation_is_stuck {
+                if form.size() > 1 {
+                    Reaction::Scatter
+                } else {
+                    Reaction::KeepOn
                 }
-                reaction = Reaction::GoCurious;
+            } else if forms_count < consts::SPLIT_MAX_FORMS || form.bounding_box().density < consts::COMPACT_DENSITY {
+                Reaction::Scatter
+            } else {
+                Reaction::GoCurious
             },
-            // keep on with current reaction
-            _ =>
-                break,
-        }
+        // keep on with current reaction
+        _ =>
+            (),
     }
 
     match reaction {
