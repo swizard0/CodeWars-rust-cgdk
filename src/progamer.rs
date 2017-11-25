@@ -175,6 +175,15 @@ impl Progamer {
                         action.group = form.id;
                         GosuClick::Split(form.id)
                     },
+                    Some(Plan { desire: Desire::Nuke { vehicle_id, strike_x, strike_y, }, .. }) => {
+                        debug!("nuclear strike by vehicle {} in {} of {:?} over ({}, {})",
+                               vehicle_id, form.id, form.kind(), strike_x, strike_y);
+                        action.action = Some(ActionType::TacticalNuclearStrike);
+                        action.vehicle_id = vehicle_id;
+                        action.x = strike_x;
+                        action.y = strike_y;
+                        GosuClick::NothingInteresting
+                    },
                     None =>
                         unreachable!(),
                 }

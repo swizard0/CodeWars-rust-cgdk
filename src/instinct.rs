@@ -1,5 +1,5 @@
 use super::rand::Rng;
-use model::{World, Game};
+use model::{World, Game, Player};
 use super::consts;
 use super::formation::{FormationId, FormationRef};
 use super::tactic::{Tactic, Plan, Desire};
@@ -19,11 +19,13 @@ enum AtsralProclaims {
     ProtectorIsChoosen { form_id: FormationId, fx: f64, fy: f64, },
     GoPunish { distress_fx: f64, distress_fy: f64, },
     GoHunt { fx: f64, fy: f64, damage: i32, foe: Option<FoeFormation>, },
+    NukeThem { fx: f64, fy: f64, foe_fx: f64, foe_fy: f64, }
 }
 
 pub struct Config<'a> {
     pub world: &'a World,
     pub game: &'a Game,
+    pub me: &'a Player,
     pub forms_count: usize,
 }
 
@@ -32,7 +34,7 @@ pub fn run<R>(mut form: FormationRef, atsral_fc: &mut AtsralForecast, tactic: &m
         AtsralForecast::Silence(ref mut atsral) =>
             basic_insticts(form, config.world, config.forms_count, atsral, tactic, rng),
         AtsralForecast::Voices(ref mut atsral) =>
-            match listen_to_atsral(&mut form, config.game, atsral) {
+            match listen_to_atsral(&mut form, config.game, config.me, atsral) {
                 AtsralProclaims::Tranquillity =>
                     (),
                 AtsralProclaims::ReadyToHelp { form_id, distress_fx, distress_fy, escape_x, escape_y, foe } => {
@@ -80,15 +82,30 @@ pub fn run<R>(mut form: FormationRef, atsral_fc: &mut AtsralForecast, tactic: &m
                         });
                     }
                 },
+                AtsralProclaims::NukeThem { fx, fy, foe_fx, foe_fy, } => {
+                    let strike_x = fx + (foe_fx - fx) * const::NUKE_ENEMY_CLOSENESS;
+                    let strike_y = fy + (foe_fy - fy) * const::NUKE_ENEMY_CLOSENESS;
+                    let vehicle_id = form.random_vehicle_id(rng);
+                    tactic.plan(rng, Plan {
+                        form_id: form.id,
+                        tick: config.world.tick_index,
+                        desire: Desire::Nuke { vehicle_id, strike_x, strike_y, },
+                    });
+                },
             },
     }
 }
 
-fn listen_to_atsral<'a>(form: &mut FormationRef<'a>, game: &Game, atsral: &mut Atsral) -> AtsralProclaims {
+fn listen_to_atsral<'a>(form: &mut FormationRef<'a>, game: &Game, me: &Player, atsral: &mut Atsral) -> AtsralProclaims {
     let mut best_helper = None;
     for cry in atsral.inbox(form.id) {
         match (cry, &*form.current_plan()) {
-            // ignore cries from myself
+            // this is cry from myself and I am able to nuke my offender
+            (Cry::ImUnderAttack { form_id, fx, fy, foe: Some(FoeFormation { fx: foe_fx, fy: foe_fy, .. }), .. }, ..) if form_id == form.id =>
+                if me.remaining_nuclear_strike_cooldown_ticks == 0 {
+                    return AtsralProclaims::NukeThem { fx, fy, foe_fx, foe_fy, };
+                },
+            // otherwise ignore cries from myself
             (Cry::ImUnderAttack { form_id, .. }, ..) if form_id == form.id =>
                 (),
             // ignore help cries while escaping
@@ -226,6 +243,9 @@ pub fn basic_insticts<'a, R>(
         // we are currently escaping and eventually stopped: looks like we are safe, so go ahead do something
         (&mut Some(Plan { desire: Desire::Escape { .. }, ..}), Trigger::Idle) =>
             Reaction::Scatter,
+        // we are currently nuking and not moving: continue nuking then
+        (&mut Some(Plan { desire: Desire::Nuke { .. }, ..}), Trigger::Idle) =>
+            Reaction::KeepOn,
     };
 
     // apply some post checks and maybe change reaction

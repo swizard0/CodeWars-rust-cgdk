@@ -16,6 +16,7 @@ pub enum Desire {
     Attack { fx: f64, fy: f64, x: f64, y: f64, sq_dist: f64, },
     Escape { fx: f64, fy: f64, x: f64, y: f64, danger_coeff: f64, },
     Hunt { fx: f64, fy: f64, x: f64, y: f64, damage: i32, foe: Option<VehicleType>, },
+    Nuke { vehicle_id: i64, strike_x: f64, strike_y: f64, },
     FormationSplit { group_size: usize, },
 }
 
@@ -70,6 +71,13 @@ impl Ord for Plan {
             (&Desire::Escape { .. }, _) =>
                 Ordering::Greater,
             (_, &Desire::Escape { .. }) =>
+                Ordering::Less,
+
+            (&Desire::Nuke { .. }, &Desire::Nuke { .. }) =>
+                Ordering::Equal,
+            (&Desire::Nuke { .. }, _) =>
+                Ordering::Greater,
+            (_, &Desire::Nuke { .. }) =>
                 Ordering::Less,
 
             (&Desire::Attack { sq_dist: d_a, .. }, &Desire::Attack { sq_dist: d_b, .. }) =>
@@ -143,7 +151,7 @@ impl PartialOrd for Plan {
 
 #[cfg(test)]
 mod test {
-    use std::cmp::max;
+    use std::cmp::{max, Ordering};
     use super::{Plan, Desire};
     use model::VehicleType;
 
@@ -180,6 +188,31 @@ mod test {
             }
         ).form_id, 2);
     }
+
+    #[test]
+    fn nuke() {
+        assert_eq!(Ord::cmp(
+            &Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::Nuke { vehicle_id: 1, strike_x: 10., strike_y: 10., },
+            },
+            &Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::Nuke { vehicle_id: 2, strike_x: 20., strike_y: 30., },
+            }
+        ), Ordering::Equal);
+        assert_eq!(max(
+            Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::FormationSplit { group_size: 100, },
+            },
+            Plan {
+                form_id: 2, tick: 0,
+                desire: Desire::Nuke { vehicle_id: 1, strike_x: 10., strike_y: 10., },
+            }
+        ).form_id, 2);
+    }
+
 
     #[test]
     fn attack() {

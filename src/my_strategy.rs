@@ -76,7 +76,7 @@ impl Strategy for MyStrategy {
             debug!("world is {} x {}", world.width, world.height);
         }
         self.update_formations(me, world);
-        self.run_instinct(world, game);
+        self.run_instinct(world, game, me);
         self.progamer.maintain_apm(me, &mut self.allies, &mut self.tactic, game, action);
     }
 }
@@ -123,7 +123,7 @@ impl MyStrategy {
         }
     }
 
-    fn run_instinct(&mut self, world: &World, game: &Game) {
+    fn run_instinct(&mut self, world: &World, game: &Game, me: &Player) {
         let rng = self.rng.get_or_insert_with(|| {
             let a = (game.random_seed & 0xFFFFFFFF) as u32;
             let b = ((game.random_seed >> 32) & 0xFFFFFFFF) as u32;
@@ -147,6 +147,7 @@ impl MyStrategy {
                     instinct::run(form, &mut atsral_fc, &mut self.tactic, rng, instinct::Config {
                         world,
                         game,
+                        me,
                         forms_count,
                     });
                 }

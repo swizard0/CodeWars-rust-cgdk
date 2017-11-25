@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use super::rand::Rng;
 use model::{Vehicle, VehicleUpdate, VehicleType};
 use super::derivatives::Derivatives;
 use super::tactic::Plan;
@@ -152,6 +153,10 @@ impl<'a> FormationRef<'a> {
 
     pub fn current_plan(&mut self) -> &mut Option<Plan> {
         &mut self.form.current_plan
+    }
+
+    pub fn random_vehicle_id<R>(&self, rng: &mut R) -> i64 where R: Rng {
+        rng.choose(&self.form.vehicles).cloned().unwrap()
     }
 }
 
