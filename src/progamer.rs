@@ -151,9 +151,9 @@ impl Progamer {
                         (new_y > game.world_height - fd) ||
                         (action.x == 0. && action.y == 0.)
                     {
-                        debug!("seems like formation {} of {:?} is stuck: cancelling the move", form_id, kind);
+                        debug!("seems like formation {} of {:?} is slightly stuck: cancelling the move", form_id, kind);
                         action.action = None;
-                        *form.stuck() = true;
+                        // *form.stuck() = true;
                         return AnalyzeCollisions::MoveCancelled;
                     }
                     second_pass = true;

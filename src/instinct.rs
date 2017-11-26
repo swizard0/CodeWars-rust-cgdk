@@ -379,14 +379,20 @@ pub fn basic_insticts<'a, R>(
     };
 
     // apply some post checks and maybe change reaction
-    match reaction {
-        // ensure that we really need to scatter
-        Reaction::ScatterOrScout => if forms_count < consts::SPLIT_MAX_FORMS || form.bounding_box().density < consts::COMPACT_DENSITY {
-            reaction = Reaction::Scatter;
-        },
-        // keep on with current reaction
-        _ =>
-            (),
+    loop {
+        match reaction {
+            // ensure that we really need to scatter
+            Reaction::ScatterOrScout => if forms_count < consts::SPLIT_MAX_FORMS || form.bounding_box().density < consts::COMPACT_DENSITY {
+                reaction = Reaction::Scatter;
+            } else {
+                break;
+            },
+            Reaction::Scatter if form.size() < 2 =>
+                reaction = Reaction::GoCurious,
+            // keep on with current reaction
+            _ =>
+                break,
+        }
     }
 
     match reaction {
@@ -453,10 +459,10 @@ fn scatter<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic
         let bbox = form.bounding_box();
         bbox.density
     };
-    let forced = if *form.stuck() {
-        false
-    } else if density < consts::COMPACT_DENSITY {
+    let forced = if density < consts::COMPACT_DENSITY {
         true
+    } else if *form.stuck() {
+        false
     } else {
         false
     };
