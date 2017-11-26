@@ -245,12 +245,14 @@ pub fn basic_insticts<'a, R>(
         Hurts,
         Sick,
         Stuck,
+        TooSparse,
     }
 
     let trigger = {
         let (health_cur, health_max) = form.health();
         let low_health = (health_cur as f64 / health_max as f64) < consts::HEAL_REQUEST_LOW_FACTOR;
         let is_aircraft = VehicleForm::check(form.kind()) == Some(VehicleForm::Aircraft);
+        let too_sparse = form.bounding_box().density < consts::COMPACT_DENSITY;
         let stuck = *form.stuck();
         let (dvts, ..) = form.dvt_sums(world.tick_index);
         if stuck {
@@ -264,6 +266,9 @@ pub fn basic_insticts<'a, R>(
         } else if low_health && is_aircraft {
             // low health alrealy
             Trigger::Sick
+        } else if too_sparse {
+            // formation is too sparse
+            Trigger::TooSparse
         } else {
             // nothing interesting
             Trigger::None
@@ -355,13 +360,13 @@ pub fn basic_insticts<'a, R>(
             Reaction::ScatterOrScout,
         // we are currently attacking and also not moving: let's look around
         (&mut Some(Plan { desire: Desire::Attack { .. }, .. }), Trigger::Idle) =>
-            Reaction::GoCurious,
+            Reaction::ScatterOrScout,
         // we are currently escaping and eventually stopped: looks like we are safe, so go ahead do something
         (&mut Some(Plan { desire: Desire::Escape { .. }, ..}), Trigger::Idle) =>
-            Reaction::GoCurious,
+            Reaction::ScatterOrScout,
         // we are currently hunting and also not moving: do something more useful
         (&mut Some(Plan { desire: Desire::Hunt { .. }, .. }), Trigger::Idle) =>
-            Reaction::GoCurious,
+            Reaction::ScatterOrScout,
         // we are currently moving towards doctor and eventually stop moving: yell for a doctor once more
         (&mut Some(Plan { desire: Desire::HurryToDoctor { fx, fy, .. }, .. }), Trigger::Idle) =>
             Reaction::YellForDoctor { fx, fy, },
@@ -372,17 +377,20 @@ pub fn basic_insticts<'a, R>(
         (&mut Some(Plan { desire: Desire::FormationSplit { .. }, .. }), Trigger::Idle) =>
             Reaction::GoCurious,
 
-        // looks like large formation is stuck: try to split in smaller pieces
+        // looks like large formation is stuck: try to move another direction
         (.., Trigger::Stuck) =>
-            Reaction::Scatter,
+            Reaction::GoCurious,
 
+        // looks like large formation is too sparse: try to split it
+        (.., Trigger::TooSparse) =>
+            Reaction::Scatter,
     };
 
     // apply some post checks and maybe change reaction
     loop {
         match reaction {
             // ensure that we really need to scatter
-            Reaction::ScatterOrScout => if forms_count < consts::SPLIT_MAX_FORMS || form.bounding_box().density < consts::COMPACT_DENSITY {
+            Reaction::ScatterOrScout => if forms_count < consts::SPLIT_MAX_FORMS {
                 reaction = Reaction::Scatter;
             } else {
                 break;
