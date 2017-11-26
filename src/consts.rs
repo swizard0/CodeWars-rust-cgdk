@@ -7,4 +7,4 @@ pub const HELPER_BY_ESCAPE_DIST_RATIO_SQ: f64 = 4.0 * 4.0;
 pub const SCOUT_RANGE_FACTOR: f64 = 2.0;
 pub const HUNT_RANGE_FACTOR: f64 = 3.0;
 pub const NUKE_ENEMY_CLOSENESS: f64 = 1.25;
-pub const HEAL_REQUEST_LOW_FACTOR: f64 = 0.34;
+pub const HEAL_REQUEST_LOW_FACTOR: f64 = 0.5;

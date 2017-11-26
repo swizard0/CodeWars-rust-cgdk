@@ -22,6 +22,7 @@ enum AtsralProclaims {
     NukeThem { fx: f64, fy: f64, foe_fx: f64, foe_fy: f64, },
     ReadyToHeal { form_id: FormationId, ill_fx: f64, ill_fy: f64, },
     DoctorIsChoosen { healer_fx: f64, healer_fy: f64, sq_dist: f64, },
+    EscapeCorrect { fx: f64, fy: f64, foe_fx: f64, foe_fy: f64, },
 }
 
 pub struct Config<'a> {
@@ -124,6 +125,10 @@ pub fn run<R>(mut form: FormationRef, atsral_fc: &mut AtsralForecast, tactic: &m
                         });
                     }
                 },
+                AtsralProclaims::EscapeCorrect { fx, fy, foe_fx, foe_fy, } => {
+                    tactic.cancel(form.id);
+                    run_away(Some((foe_fx, foe_fy, fx, fy)), true, form, config.world, tactic, rng);
+                },
             },
     }
 }
@@ -131,15 +136,21 @@ pub fn run<R>(mut form: FormationRef, atsral_fc: &mut AtsralForecast, tactic: &m
 fn listen_to_atsral<'a>(form: &mut FormationRef<'a>, game: &Game, me: &Player, atsral: &mut Atsral) -> AtsralProclaims {
     let mut best_helper = None;
     let mut best_healer = None;
-    for cry in atsral.inbox(form.id) {
+    let self_form_id = form.id;
+    let self_kind = form.kind().clone();
+    for cry in atsral.inbox(self_form_id) {
         match (cry, &*form.current_plan()) {
-            // this is cry from myself and I am able to nuke my offender
-            (Cry::ImUnderAttack { form_id, fx, fy, foe: Some(FoeFormation { fx: foe_fx, fy: foe_fy, .. }), .. }, ..) if form_id == form.id =>
+            // this is cry from myself
+            (Cry::ImUnderAttack { form_id, fx, fy, foe: Some(FoeFormation { fx: foe_fx, fy: foe_fy, .. }), .. }, plan) if form_id == self_form_id =>
                 if me.remaining_nuclear_strike_cooldown_ticks == 0 {
+                    // I am able to nuke my offender
                     return AtsralProclaims::NukeThem { fx, fy, foe_fx, foe_fy, };
+                } else if let &Some(Plan { desire: Desire::Escape { fx, fy, corrected: false, .. }, .. }) = plan {
+                    // escape plan could be corrected
+                    return AtsralProclaims::EscapeCorrect { fx, fy, foe_fx, foe_fy, };
                 },
             // otherwise ignore cries from myself
-            (Cry::ImUnderAttack { form_id, .. }, ..) if form_id == form.id =>
+            (Cry::ImUnderAttack { form_id, .. }, ..) if form_id == self_form_id =>
                 (),
             // ignore help cries while escaping
             (Cry::ImUnderAttack { .. }, &Some(Plan { desire: Desire::Escape { .. }, ..})) =>
@@ -149,7 +160,7 @@ fn listen_to_atsral<'a>(form: &mut FormationRef<'a>, game: &Game, me: &Player, a
                 (),
             // respond to the cry if we could possibly help
             (Cry::ImUnderAttack { form_id, fx, fy, escape_x, escape_y, foe, .. }, ..) =>
-                if combat_info(game, form.kind(), &foe.as_ref().map(|ff| ff.kind)).damage > 0 {
+                if combat_info(game, &self_kind, &foe.as_ref().map(|ff| ff.kind)).damage > 0 {
                     return AtsralProclaims::ReadyToHelp { form_id, distress_fx: fx, distress_fy: fy, escape_x, escape_y, foe, };
                 },
 
@@ -195,7 +206,7 @@ fn listen_to_atsral<'a>(form: &mut FormationRef<'a>, game: &Game, me: &Player, a
 
             // someone needs a doctor
             (Cry::NeedDoctor { form_id, fx, fy, }, ..) =>
-                if let &Some(VehicleType::Arrv) = form.kind() {
+                if let Some(VehicleType::Arrv) = self_kind {
                     return AtsralProclaims::ReadyToHeal { form_id, ill_fx: fx, ill_fy: fy, };
                 },
 
@@ -321,8 +332,8 @@ pub fn basic_insticts<'a, R>(
         (&mut Some(Plan { desire: Desire::Attack { fx, fy, x, y, .. }, ..}), Trigger::Hurts) =>
             Reaction::RunAway(Some((x, y, fx, fy))),
         // we are under attack while running away: keep on escaping
-        (&mut Some(Plan { desire: Desire::Escape { fx, fy, x, y, .. }, .. }), Trigger::Hurts) =>
-            Reaction::RunAway(Some((fx, fy, x, y))),
+        (&mut Some(Plan { desire: Desire::Escape { fx, fy, x: escape_x, y: escape_y, .. }, .. }), Trigger::Hurts) =>
+            Reaction::YellForHelp { fx, fy, escape_x, escape_y, },
         // we are under attack while hunting: run away
         (&mut Some(Plan { desire: Desire::Hunt { fx, fy, x, y, .. }, .. }), Trigger::Hurts) =>
             Reaction::RunAway(Some((x, y, fx, fy))),
@@ -388,7 +399,7 @@ pub fn basic_insticts<'a, R>(
         Reaction::ScatterOrScout =>
             scout(form, world, tactic, rng),
         Reaction::RunAway(escape_vec) =>
-            run_away(escape_vec, form, world, tactic, rng),
+            run_away(escape_vec, false, form, world, tactic, rng),
         Reaction::YellForHelp { fx, fy, escape_x, escape_y, } => {
             atsral.cry(Cry::ImUnderAttack {
                 fx, fy, escape_x, escape_y,
@@ -462,6 +473,7 @@ fn scatter<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic
 
 fn run_away<'a, R>(
     escape_vec: Option<(f64, f64, f64, f64)>,
+    corrected: bool,
     mut form: FormationRef<'a>,
     world: &World,
     tactic: &mut Tactic,
@@ -498,7 +510,7 @@ fn run_away<'a, R>(
         form_id: form.id,
         tick: world.tick_index,
         desire: Desire::Escape {
-            x, y, fx, fy,
+            x, y, fx, fy, corrected,
             danger_coeff: 0. - (d_durability as f64),
         },
     });

@@ -15,7 +15,7 @@ pub struct Plan {
 pub enum Desire {
     ScoutTo { fx: f64, fy: f64, x: f64, y: f64, kind: Option<VehicleType>, sq_dist: f64, },
     Attack { fx: f64, fy: f64, x: f64, y: f64, sq_dist: f64, },
-    Escape { fx: f64, fy: f64, x: f64, y: f64, danger_coeff: f64, },
+    Escape { fx: f64, fy: f64, x: f64, y: f64, danger_coeff: f64, corrected: bool, },
     Hunt { fx: f64, fy: f64, x: f64, y: f64, damage: i32, foe: Option<VehicleType>, },
     HurryToDoctor { fx: f64, fy: f64, x: f64, y: f64, sq_dist: f64, },
     Nuke { vehicle_id: i64, fx: f64, fy: f64, strike_x: f64, strike_y: f64, },
@@ -248,11 +248,11 @@ mod test {
         assert_eq!(Ord::cmp(
             &Plan {
                 form_id: 1, tick: 0,
-                desire: Desire::Nuke { vehicle_id: 1, strike_x: 10., strike_y: 10., },
+                desire: Desire::Nuke { vehicle_id: 1, fx: 0., fy: 0., strike_x: 10., strike_y: 10., },
             },
             &Plan {
                 form_id: 1, tick: 0,
-                desire: Desire::Nuke { vehicle_id: 2, strike_x: 20., strike_y: 30., },
+                desire: Desire::Nuke { vehicle_id: 2, fx: 0., fy: 0., strike_x: 20., strike_y: 30., },
             }
         ), Ordering::Equal);
         assert_eq!(max(
@@ -262,7 +262,7 @@ mod test {
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::Nuke { vehicle_id: 1, strike_x: 10., strike_y: 10., },
+                desire: Desire::Nuke { vehicle_id: 1, fx: 0., fy: 0., strike_x: 10., strike_y: 10., },
             }
         ).form_id, 2);
     }
@@ -288,6 +288,30 @@ mod test {
             Plan {
                 form_id: 2, tick: 0,
                 desire: Desire::Attack { fx: 10., fy: 10., x: 15., y: 15., sq_dist: 50., },
+            }
+        ).form_id, 2);
+    }
+
+    #[test]
+    fn hurry_to_doctor() {
+        assert_eq!(max(
+            Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::HurryToDoctor { fx: 10., fy: 10., x: 20., y: 20., sq_dist: 200., },
+            },
+            Plan {
+                form_id: 2, tick: 0,
+                desire: Desire::HurryToDoctor { fx: 10., fy: 10., x: 15., y: 15., sq_dist: 50., },
+            }
+        ).form_id, 1);
+        assert_eq!(max(
+            Plan {
+                form_id: 1, tick: 0,
+                desire: Desire::FormationSplit { group_size: 100, forced: false, },
+            },
+            Plan {
+                form_id: 2, tick: 0,
+                desire: Desire::HurryToDoctor { fx: 10., fy: 10., x: 15., y: 15., sq_dist: 50., },
             }
         ).form_id, 2);
     }
@@ -321,11 +345,11 @@ mod test {
         assert_eq!(max(
             Plan {
                 form_id: 1, tick: 0,
-                desire: Desire::Escape { fx: 10., fy: 10., x: 20., y: 20., danger_coeff: 200., },
+                desire: Desire::Escape { fx: 10., fy: 10., x: 20., y: 20., danger_coeff: 200., corrected: false, },
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::Escape { fx: 10., fy: 10., x: 15., y: 15., danger_coeff: 50., },
+                desire: Desire::Escape { fx: 10., fy: 10., x: 15., y: 15., danger_coeff: 50., corrected: false, },
             }
         ).form_id, 1);
         assert_eq!(max(
@@ -335,7 +359,7 @@ mod test {
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::Escape { fx: 10., fy: 10., x: 15., y: 15., danger_coeff: 50., },
+                desire: Desire::Escape { fx: 10., fy: 10., x: 15., y: 15., danger_coeff: 50., corrected: false, },
             }
         ).form_id, 2);
     }
