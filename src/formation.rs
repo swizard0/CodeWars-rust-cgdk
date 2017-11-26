@@ -143,10 +143,6 @@ impl<'a> FormationRef<'a> {
         (&self.form.dvt_s, form_size)
     }
 
-    pub fn bound(&mut self) -> &mut bool {
-        &mut self.form.bound
-    }
-
     pub fn stuck(&mut self) -> &mut bool {
         &mut self.form.stuck
     }
@@ -210,7 +206,6 @@ struct Formation {
     vehicles: Vec<i64>,
     bbox: Option<Rect>,
     update_tick: i32,
-    bound: bool,
     stuck: bool,
     current_plan: Option<Plan>,
     dvt_s: Derivatives,
@@ -231,7 +226,6 @@ impl Formation {
             vehicles: Vec::new(),
             bbox: None,
             update_tick: tick,
-            bound: false,
             stuck: false,
             current_plan: None,
             dvt_s: Derivatives::new(),

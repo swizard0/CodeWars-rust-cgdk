@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use model::{ActionType, Action, Player, Game, VehicleType};
 use super::tactic::{Plan, Desire, Tactic};
 use super::formation::{Formations, FormationId};
@@ -7,6 +8,7 @@ use super::rect::Rect;
 pub struct Progamer {
     current: Option<FormationId>,
     selection: Option<FormationId>,
+    coll_filter: HashSet<FormationId>,
 }
 
 enum GosuClick {
@@ -25,6 +27,7 @@ impl Progamer {
         Progamer {
             current: None,
             selection: None,
+            coll_filter: HashSet::new(),
         }
     }
 
@@ -70,7 +73,7 @@ impl Progamer {
         self_kind: Option<VehicleType>)
         -> AnalyzeCollisions
     {
-        let mut second_pass = false;
+        self.coll_filter.clear();
         loop {
             let mut closest_bbox: Option<(f64, f64, f64, f64, FormationId, Option<_>, f64)> = None;
             {
@@ -99,8 +102,8 @@ impl Progamer {
             if let Some((_, new_x, new_y, density, collide_form_id, collide_kind, collide_density)) = closest_bbox {
                 if let Some(mut form) = formations.get_by_id(form_id) {
                     let kind = form.kind().clone();
-                    if second_pass {
-                        debug!("seems like formation {} of {:?} is stuck (second pass): cancelling the move", form_id, kind);
+                    if self.coll_filter.contains(&collide_form_id) {
+                        debug!("seems like formation {} of {:?} is stuck (multiple passes): cancelling the move", form_id, kind);
                         action.action = None;
                         *form.stuck() = true;
                         return AnalyzeCollisions::MoveCancelled;
@@ -156,7 +159,7 @@ impl Progamer {
                         // *form.stuck() = true;
                         return AnalyzeCollisions::MoveCancelled;
                     }
-                    second_pass = true;
+                    self.coll_filter.insert(collide_form_id);
                 } else {
                     unreachable!()
                 }
@@ -190,93 +193,76 @@ impl Progamer {
                 return GosuClick::NothingInteresting;
             };
         if self.selection == Some(form.id) {
-            if *form.bound() {
-                // case A: formation is selected and bound -- just continue with the plan
-                match *form.current_plan() {
-                    Some(Plan { desire: Desire::ScoutTo { fx, fy, x, y, .. }, .. }) => {
-                        debug!("scout formation {} of {:?} w/{:?} aiming ({}, {})", form.id, form.kind(), form.health(), x, y);
-                        action.action = Some(ActionType::Move);
-                        action.x = x - fx;
-                        action.y = y - fy;
-                        GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
-                    },
-                    Some(Plan { desire: Desire::Attack { fx, fy, x, y, .. }, .. }) => {
-                        debug!("attack formation {} of {:?} w/{:?} aiming ({}, {})", form.id, form.kind(), form.health(), x, y);
-                        action.action = Some(ActionType::Move);
-                        action.x = x - fx;
-                        action.y = y - fy;
-                        GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
-                    },
-                    Some(Plan { desire: Desire::Escape { fx, fy, x, y, danger_coeff, corrected }, .. }) => {
-                        debug!("escape {}formation {} of {:?} w/{:?} danger {} aiming ({}, {})",
-                               if corrected { "(corrected) " } else { "" },
-                               form.id, form.kind(), form.health(), danger_coeff, x, y);
-                        action.action = Some(ActionType::Move);
-                        action.x = x - fx;
-                        action.y = y - fy;
-                        GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
-                    },
-                    Some(Plan { desire: Desire::Hunt { fx, fy, x, y, .. }, .. }) => {
-                        debug!("hunt formation {} of {:?} w/{:?} aiming ({}, {})", form.id, form.kind(), form.health(), x, y);
-                        action.action = Some(ActionType::Move);
-                        action.x = x - fx;
-                        action.y = y - fy;
-                        GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
-                    },
-                    Some(Plan { desire: Desire::HurryToDoctor { fx, fy, x, y, .. }, .. }) => {
-                        debug!("hurry to doctor formation {} of {:?} w/{:?} aiming ({}, {})", form.id, form.kind(), form.health(), x, y);
-                        action.action = Some(ActionType::Move);
-                        action.x = x - fx;
-                        action.y = y - fy;
-                        GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
-                    },
-                    Some(Plan { desire: Desire::FormationSplit { group_size, forced, }, .. }) => {
-                        debug!("splitting ({}) formation {} of {} vehicles", if forced { "forced" } else { "regular" }, form.id, group_size);
-                        action.action = Some(ActionType::Dismiss);
-                        action.group = form.id;
-                        GosuClick::Split(form.id)
-                    },
-                    Some(Plan { desire: Desire::Nuke { vehicle_id, strike_x, strike_y, .. }, .. }) => {
-                        debug!("nuclear strike by vehicle {} in {} of {:?} over ({}, {})",
-                               vehicle_id, form.id, form.kind(), strike_x, strike_y);
-                        action.action = Some(ActionType::TacticalNuclearStrike);
-                        action.vehicle_id = vehicle_id;
-                        action.x = strike_x;
-                        action.y = strike_y;
-                        GosuClick::NothingInteresting
-                    },
-                    None =>
-                        unreachable!(),
-                }
-            } else {
-                // case B: formation is selected but not bound: bind it first
-                debug!("binding formation {} of {:?} to group", form.id, form.kind());
-                action.action = Some(ActionType::Assign);
-                action.group = form.id;
-                *form.bound() = true;
-                self.current = Some(form.id);
-                GosuClick::NothingInteresting
+            // case A: formation is selected -- just continue with the plan
+            match *form.current_plan() {
+                Some(Plan { desire: Desire::ScoutTo { fx, fy, x, y, .. }, .. }) => {
+                    debug!("scout formation {} of {:?} w/{:?} aiming ({}, {})", form.id, form.kind(), form.health(), x, y);
+                    action.action = Some(ActionType::Move);
+                    action.x = x - fx;
+                    action.y = y - fy;
+                    GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
+                },
+                Some(Plan { desire: Desire::Attack { fx, fy, x, y, .. }, .. }) => {
+                    debug!("attack formation {} of {:?} w/{:?} aiming ({}, {})", form.id, form.kind(), form.health(), x, y);
+                    action.action = Some(ActionType::Move);
+                    action.x = x - fx;
+                    action.y = y - fy;
+                    GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
+                },
+                Some(Plan { desire: Desire::Escape { fx, fy, x, y, danger_coeff, corrected }, .. }) => {
+                    debug!("escape {}formation {} of {:?} w/{:?} danger {} aiming ({}, {})",
+                           if corrected { "(corrected) " } else { "" },
+                           form.id, form.kind(), form.health(), danger_coeff, x, y);
+                    action.action = Some(ActionType::Move);
+                    action.x = x - fx;
+                    action.y = y - fy;
+                    GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
+                },
+                Some(Plan { desire: Desire::Hunt { fx, fy, x, y, .. }, .. }) => {
+                    debug!("hunt formation {} of {:?} w/{:?} aiming ({}, {})", form.id, form.kind(), form.health(), x, y);
+                    action.action = Some(ActionType::Move);
+                    action.x = x - fx;
+                    action.y = y - fy;
+                    GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
+                },
+                Some(Plan { desire: Desire::HurryToDoctor { fx, fy, x, y, .. }, .. }) => {
+                    debug!("hurry to doctor formation {} of {:?} w/{:?} aiming ({}, {})", form.id, form.kind(), form.health(), x, y);
+                    action.action = Some(ActionType::Move);
+                    action.x = x - fx;
+                    action.y = y - fy;
+                    GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
+                },
+                Some(Plan { desire: Desire::FormationSplit { group_size, forced, }, .. }) => {
+                    debug!("splitting ({}) formation {} of {} vehicles", if forced { "forced" } else { "regular" }, form.id, group_size);
+                    action.action = Some(ActionType::Dismiss);
+                    action.group = form.id;
+                    GosuClick::Split(form.id)
+                },
+                Some(Plan { desire: Desire::Nuke { vehicle_id, strike_x, strike_y, .. }, .. }) => {
+                    debug!("nuclear strike by vehicle {} in {} of {:?} over ({}, {})",
+                           vehicle_id, form.id, form.kind(), strike_x, strike_y);
+                    action.action = Some(ActionType::TacticalNuclearStrike);
+                    action.vehicle_id = vehicle_id;
+                    action.x = strike_x;
+                    action.y = strike_y;
+                    GosuClick::NothingInteresting
+                },
+                None =>
+                    unreachable!(),
             }
         } else {
-            if *form.bound() {
-                // case C: formation is not selected, but it has been bound
-                debug!("selecting bound formation {} of {:?} w/{:?}", form.id, form.kind(), form.health());
-                action.action = Some(ActionType::ClearAndSelect);
-                action.group = form.id;
-            } else {
-                // case C: formation is not selected and a has not been bound as well
-                let form_id = form.id;
-                action.vehicle_type = form.kind().clone();
-                let bbox = form.bounding_box();
-                debug!("selecting unbound formation {} of {:?}", form_id, action.vehicle_type);
-                action.action = Some(ActionType::ClearAndSelect);
-                action.left = bbox.left;
-                action.top = bbox.top;
-                action.right = bbox.right;
-                action.bottom = bbox.bottom;
-            }
-            self.current = Some(form.id);
-            self.selection = Some(form.id);
+            // formation is not selected
+            let form_id = form.id;
+            action.vehicle_type = form.kind().clone();
+            let bbox = form.bounding_box();
+            debug!("selecting unbound formation {} of {:?}", form_id, action.vehicle_type);
+            action.action = Some(ActionType::ClearAndSelect);
+            action.left = bbox.left;
+            action.top = bbox.top;
+            action.right = bbox.right;
+            action.bottom = bbox.bottom;
+            self.current = Some(form_id);
+            self.selection = Some(form_id);
             GosuClick::NothingInteresting
         }
     }

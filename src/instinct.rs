@@ -158,6 +158,12 @@ fn listen_to_atsral<'a>(form: &mut FormationRef<'a>, game: &Game, me: &Player, a
             // ignore help cries while attacking someone else
             (Cry::ImUnderAttack { .. }, &Some(Plan { desire: Desire::Attack { .. }, ..})) =>
                 (),
+            // ignore help cries while hurrying to doctor
+            (Cry::ImUnderAttack { .. }, &Some(Plan { desire: Desire::HurryToDoctor { .. }, ..})) =>
+                (),
+            // ignore help cries while nuking
+            (Cry::ImUnderAttack { .. }, &Some(Plan { desire: Desire::Nuke { .. }, ..})) =>
+                (),
             // respond to the cry if we could possibly help
             (Cry::ImUnderAttack { form_id, fx, fy, escape_x, escape_y, foe, .. }, ..) =>
                 if combat_info(game, &self_kind, &foe.as_ref().map(|ff| ff.kind)).damage > 0 {
