@@ -1,8 +1,11 @@
 [package]
 name = "code_wars_rust_cgdk"
-version = "0.2.26"
+version = "0.2.27"
 authors = ["swizard <me@swizard.info>"]
 
 [[bin]]
 name = "code_wars"
 path = "src/runner.rs"
+
+[dependencies]
+piston_window = "0.70"

@@ -1,13 +1,29 @@
 extern crate core;
+extern crate piston_window;
 
 mod model;
 mod my_strategy;
 mod remote_process_client;
 mod strategy;
 
-use std::io;
+use std::{io, path};
 use remote_process_client::RemoteProcessClient;
 use strategy::Strategy;
+
+use piston_window::{
+    OpenGL,
+    PistonWindow,
+    WindowSettings,
+    TextureSettings,
+    Glyphs,
+};
+
+pub mod vis;
+
+const CONSOLE_HEIGHT: u32 = 32;
+const BORDER_WIDTH: u32 = 16;
+const SCREEN_WIDTH: u32 = 800;
+const SCREEN_HEIGHT: u32 = 600;
 
 struct Args {
     host: String,
@@ -68,6 +84,19 @@ impl Runner {
     }
 
     pub fn run<T: Strategy>(&mut self) -> io::Result<()> {
+        let opengl = OpenGL::V3_2;
+        let mut window: PistonWindow = WindowSettings::new("aicup", [SCREEN_WIDTH, SCREEN_HEIGHT])
+            .exit_on_esc(true)
+            .opengl(opengl)
+            .build()
+            .unwrap();
+
+        let mut font_path = path::PathBuf::from("assets");
+        font_path.push("FiraSans-Regular.ttf");
+        let mut glyphs = Glyphs::new(&font_path, window.factory.clone(), TextureSettings::new()).unwrap();
+
+        let mut vis = vis::Visualizer::new(&mut window, &mut glyphs);
+
         use model::Action;
 
         self.client.write_authentication_token_message(self.token.clone())?;
@@ -79,6 +108,7 @@ impl Runner {
         while let Some(player_context) = self.client.read_player_context_message()? {
             let mut action = Action::default();
             strategy.act(&player_context.player, &player_context.world, &game, &mut action);
+            vis.tick(&player_context.player, &player_context.world, &game, &action);
             self.client.write_action_message(action)?;
         }
 
