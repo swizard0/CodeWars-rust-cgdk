@@ -16,7 +16,7 @@ use piston_window::{
     TextureSettings,
     Viewport,
     Glyphs,
-    // EventLoop,
+    EventLoop,
     PressEvent,
     Button,
     Key
@@ -93,22 +93,58 @@ impl Visualizer {
 }
 
 fn painter_loop(tx: &mpsc::Sender<Trigger>, rx: &mpsc::Receiver<DrawPacket>) {
-    let opengl = OpenGL::V4_5;
+    let opengl = OpenGL::V4_1;
     let mut window: PistonWindow = WindowSettings::new("aicup", [SCREEN_WIDTH, SCREEN_HEIGHT])
         .exit_on_esc(true)
         .opengl(opengl)
         .build()
         .unwrap();
-    // window.events.set_max_fps(30);
-    // window.events.set_ups_reset(0);
+    window.events.set_max_fps(16);
+    window.events.set_ups(64);
+    window.events.set_ups_reset(0);
     // window.events.set_lazy(true);
-    // println!("events: {:?}", window.events.get_event_settings());
+    println!("events: {:?}", window.events.get_event_settings());
 
     let mut font_path = path::PathBuf::from("assets");
     font_path.push("FiraSans-Regular.ttf");
     let mut glyphs = Glyphs::new(&font_path, window.factory.clone(), TextureSettings::new()).unwrap();
 
+    let mut draw_packet = rx.recv().unwrap();
+    let mut draw_confirmed = false;
     while let Some(event) = window.next() {
+        window.draw_2d(&event, |context, g2d| {
+            use piston_window::{clear, text, rectangle, Transformed};
+            clear([0.0, 0.0, 0.0, 1.0], g2d);
+            text::Text::new_color([0.0, 1.0, 0.0, 1.0], 16).draw(
+                &format!("{} |", draw_packet.tick_index),
+                &mut glyphs,
+                &context.draw_state,
+                context.transform.trans(5.0, 20.0),
+                g2d
+            ).unwrap();
+            if let Some(tr) = ViewportTranslator::new(&context.viewport, draw_packet.world_width, draw_packet.world_height) {
+                for element in draw_packet.elements.iter() {
+                    match element {
+                        &Draw::Vehicle { side, ref vehicle, } => {
+                            let color = vehicle_color(side, vehicle.kind);
+                            let coords = [
+                                tr.x(vehicle.x) - tr.scale_x(vehicle.radius),
+                                tr.y(vehicle.y) - tr.scale_y(vehicle.radius),
+                                tr.scale_x(vehicle.radius) * 2.,
+                                tr.scale_y(vehicle.radius) * 2.,
+                            ];
+                            // ellipse(color, coords, context.transform, g2d);
+                            rectangle(color, coords, context.transform, g2d);
+                        },
+                    }
+                }
+            }
+            if !draw_confirmed {
+                tx.send(Trigger::PaintingDone).unwrap();
+                draw_confirmed = true;
+            }
+        });
+
         match event.press_args() {
             Some(Button::Keyboard(Key::N)) =>
                 tx.send(Trigger::PauseAfter1).unwrap(),
@@ -123,39 +159,11 @@ fn painter_loop(tx: &mpsc::Sender<Trigger>, rx: &mpsc::Receiver<DrawPacket>) {
                 (),
             Err(mpsc::TryRecvError::Disconnected) =>
                 break,
-            Ok(draw_packet) => {
-                let glyphs = &mut glyphs;
-                window.draw_2d(&event, move |context, g2d| {
-                    use piston_window::{clear, text, ellipse, Transformed};
-                    clear([0.0, 0.0, 0.0, 1.0], g2d);
-                    text::Text::new_color([0.0, 1.0, 0.0, 1.0], 16).draw(
-                        &format!("{} |", draw_packet.tick_index),
-                        glyphs,
-                        &context.draw_state,
-                        context.transform.trans(5.0, 20.0),
-                        g2d
-                    );
-
-                    if let Some(tr) = ViewportTranslator::new(&context.viewport, draw_packet.world_width, draw_packet.world_height) {
-                        for element in draw_packet.elements {
-                            match element {
-                                Draw::Vehicle { side, vehicle, } => {
-                                    let color = vehicle_color(side, vehicle.kind);
-                                    let coords = [
-                                        tr.x(vehicle.x) - tr.scale_x(vehicle.radius),
-                                        tr.y(vehicle.y) - tr.scale_y(vehicle.radius),
-                                        tr.scale_x(vehicle.radius) * 2.,
-                                        tr.scale_y(vehicle.radius) * 2.,
-                                    ];
-                                    ellipse(color, coords, context.transform, g2d);
-                                },
-                            }
-                        }
-                    }
-                });
-                tx.send(Trigger::PaintingDone).unwrap();
+            Ok(packet) => {
+                draw_packet = packet;
+                draw_confirmed = false;
             },
-        }
+        };
     }
 }
 

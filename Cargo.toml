@@ -8,4 +8,4 @@ name = "code_wars"
 path = "src/runner.rs"
 
 [dependencies]
-piston_window = "0.70"
+piston_window = "0.73"
