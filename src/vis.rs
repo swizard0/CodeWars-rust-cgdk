@@ -25,24 +25,26 @@ use piston_window::{
 pub struct Visualizer {
     tx: mpsc::Sender<DrawPacket>,
     rx: mpsc::Receiver<Trigger>,
-    _slave: thread::JoinHandle<()>,
     pause_tick: i32,
 }
 
 impl Visualizer {
-    pub fn new() -> Visualizer {
+    pub fn bootstrap<F>(runner_proc: F) where F: FnOnce(&mut Visualizer) -> ::std::io::Result<()> + Send + Sync + 'static {
         let (master_tx, slave_rx) = mpsc::channel();
         let (slave_tx, master_rx) = mpsc::channel();
-        let slave = thread::Builder::new()
-            .name("painter slave".to_string())
-            .spawn(move || painter_loop(&slave_tx, &slave_rx))
+        let _slave = thread::Builder::new()
+            .name("strategy master".to_string())
+            .spawn(move || {
+                let mut visualizer = Visualizer {
+                    tx: master_tx,
+                    rx: master_rx,
+                    pause_tick: 0,
+                };
+                runner_proc(&mut visualizer).unwrap();
+            })
             .unwrap();
-        Visualizer {
-            tx: master_tx,
-            rx: master_rx,
-            _slave: slave,
-            pause_tick: 0,
-        }
+
+        painter_loop(&slave_tx, &slave_rx);
     }
 
     pub fn tick(&mut self, _me: &Player, world: &World, _game: &Game, _action: &Action, allies: &mut Formations, enemies: &mut Formations) {

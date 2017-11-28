@@ -33,7 +33,7 @@ fn main() {
         }
     };
 
-    let mut runner = Runner::new(client, args.token);
+    let runner = Runner::new(client, args.token);
 
     match runner.run::<MyStrategy>() {
         Ok(_) => (),
@@ -70,23 +70,23 @@ impl Runner {
         Runner { client, token }
     }
 
-    pub fn run<T: Strategy>(&mut self) -> io::Result<()> {
-        let mut vis = vis::Visualizer::new();
+    pub fn run<T: Strategy>(mut self) -> io::Result<()> {
+        vis::Visualizer::bootstrap(move |vis: &mut vis::Visualizer| {
+            use model::Action;
 
-        use model::Action;
+            self.client.write_authentication_token_message(self.token.clone())?;
+            self.client.write_protocol_version_message()?;
+            self.client.read_team_size_message()?;
+            let game = self.client.read_game_message()?;
+            let mut strategy = T::default();
 
-        self.client.write_authentication_token_message(self.token.clone())?;
-        self.client.write_protocol_version_message()?;
-        self.client.read_team_size_message()?;
-        let game = self.client.read_game_message()?;
-        let mut strategy = T::default();
-
-        while let Some(player_context) = self.client.read_player_context_message()? {
-            let mut action = Action::default();
-            strategy.act(&mut vis, &player_context.player, &player_context.world, &game, &mut action);
-            self.client.write_action_message(action)?;
-        }
-
+            while let Some(player_context) = self.client.read_player_context_message()? {
+                let mut action = Action::default();
+                strategy.act(vis, &player_context.player, &player_context.world, &game, &mut action);
+                self.client.write_action_message(action)?;
+            }
+            Ok(())
+        });
         Ok(())
     }
 }
