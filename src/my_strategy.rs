@@ -26,7 +26,7 @@ mod atsral;
 #[path = "common.rs"]
 mod common;
 #[path = "rect.rs"]
-mod rect;
+pub mod rect;
 #[path = "side.rs"]
 pub mod side;
 

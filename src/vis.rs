@@ -2,6 +2,7 @@ use std::{path, thread};
 use std::sync::mpsc;
 use model::{Game, Action, Player, World, Vehicle, VehicleType};
 use super::my_strategy::side::Side;
+use super::my_strategy::rect::Rect;
 use super::my_strategy::formation::Formations;
 
 const CONSOLE_HEIGHT: u32 = 32;
@@ -78,10 +79,15 @@ impl Visualizer {
         }
     }
 
-    fn draw_vehicles(&self, formation: &mut Formations, draw: &mut Vec<Draw>) {
-        let side = formation.side;
-        let mut forms_iter = formation.iter();
-        while let Some(form) = forms_iter.next() {
+    fn draw_vehicles(&self, formations: &mut Formations, draw: &mut Vec<Draw>) {
+        let side = formations.side;
+        let mut forms_iter = formations.iter();
+        while let Some(mut form) = forms_iter.next() {
+            draw.push(Draw::Formation {
+                side,
+                kind: form.kind().clone(),
+                bbox: form.bounding_box().clone(),
+            });
             for vehicle in form.vehicles() {
                 draw.push(Draw::Vehicle {
                     side,
@@ -100,7 +106,7 @@ fn painter_loop(tx: &mpsc::Sender<Trigger>, rx: &mpsc::Receiver<DrawPacket>) {
         .build()
         .unwrap();
     window.events.set_max_fps(16);
-    window.events.set_ups(64);
+    window.events.set_ups(20);
     window.events.set_ups_reset(0);
     // window.events.set_lazy(true);
     println!("events: {:?}", window.events.get_event_settings());
@@ -133,7 +139,17 @@ fn painter_loop(tx: &mpsc::Sender<Trigger>, rx: &mpsc::Receiver<DrawPacket>) {
                                 tr.scale_x(vehicle.radius) * 2.,
                                 tr.scale_y(vehicle.radius) * 2.,
                             ];
-                            // ellipse(color, coords, context.transform, g2d);
+                            rectangle(color, coords, context.transform, g2d);
+                        },
+                        &Draw::Formation { side, kind, ref bbox, } => {
+                            let mut color = vehicle_color(side, kind);
+                            color[3] = 0.1;
+                            let coords = [
+                                tr.x(bbox.left),
+                                tr.y(bbox.top),
+                                tr.scale_x(bbox.right - bbox.left),
+                                tr.scale_y(bbox.bottom - bbox.top),
+                            ];
                             rectangle(color, coords, context.transform, g2d);
                         },
                     }
@@ -220,6 +236,7 @@ struct DrawPacket {
 
 enum Draw {
     Vehicle { side: Side, vehicle: Vehicle, },
+    Formation { side: Side, kind: Option<VehicleType>, bbox: Rect, },
 }
 
 fn vehicle_color(side: Side, kind: Option<VehicleType>) -> [f32; 4] {
