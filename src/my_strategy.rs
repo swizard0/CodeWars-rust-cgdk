@@ -14,7 +14,7 @@ mod consts;
 #[path = "derivatives.rs"]
 mod derivatives;
 #[path = "formation.rs"]
-mod formation;
+pub mod formation;
 #[path = "instinct.rs"]
 mod instinct;
 #[path = "progamer.rs"]
@@ -28,7 +28,9 @@ mod common;
 #[path = "rect.rs"]
 mod rect;
 #[path = "side.rs"]
-mod side;
+pub mod side;
+
+use super::vis::Visualizer;
 
 use self::rand::{SeedableRng, XorShiftRng};
 
@@ -63,7 +65,7 @@ impl Default for MyStrategy {
 }
 
 impl Strategy for MyStrategy {
-    fn act(&mut self, me: &Player, world: &World, game: &Game, action: &mut Action) {
+    fn act(&mut self, vis: &mut Visualizer, me: &Player, world: &World, game: &Game, action: &mut Action) {
         if world.tick_index == 0 {
             // env_logger::init().unwrap();
             #[cfg(debug_assertions)]
@@ -78,6 +80,8 @@ impl Strategy for MyStrategy {
         self.update_formations(me, world);
         self.run_instinct(world, game, me);
         self.progamer.maintain_apm(me, &mut self.allies, &mut self.tactic, game, action);
+
+        vis.tick(me, world, game, action, &mut self.allies, &mut self.enemies);
     }
 }
 
