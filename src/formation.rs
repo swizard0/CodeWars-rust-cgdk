@@ -162,6 +162,11 @@ impl<'a> FormationRef<'a> {
     pub fn health(&self) -> (i32, i32) {
         (self.form.dur_cur, self.form.dur_max)
     }
+
+    #[allow(dead_code)]
+    pub fn vehicles<'r>(&'r self) -> Box<Iterator<Item = &'r Vehicle> + 'r> {
+        Box::new(self.form.vehicles.iter().flat_map(move |id| self.by_vehicle_id.get(id)).map(|u| &u.vehicle))
+    }
 }
 
 pub struct FormationBuilder<'a> {
