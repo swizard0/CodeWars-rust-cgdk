@@ -4,39 +4,9 @@ pub struct Rect {
     pub top: f64,
     pub right: f64,
     pub bottom: f64,
-    pub cx: f64,
-    pub cy: f64,
-    pub density: f64,
 }
 
 impl Rect {
-    pub fn from_iter<I>(iter: I) -> Rect where I: Iterator<Item = (f64, f64, f64)> {
-        let mut rect = Rect {
-            left: ::std::f64::MAX,
-            top: ::std::f64::MAX,
-            right: ::std::f64::MIN,
-            bottom: ::std::f64::MIN,
-            cx: 0.,
-            cy: 0.,
-            density: 0.,
-        };
-        let (mut cx_s, mut cy_s, mut area_s, mut total) = (0., 0., 0., 0);
-        for (x, y, radius) in iter {
-            rect.left = rect.left.min(x - radius);
-            rect.top = rect.top.min(y - radius);
-            rect.right = rect.right.max(x + radius);
-            rect.bottom = rect.bottom.max(y + radius);
-            cx_s += x;
-            cy_s += y;
-            area_s += ::std::f64::consts::PI * radius * radius;
-            total += 1;
-        }
-        rect.cx = cx_s / total as f64;
-        rect.cy = cy_s / total as f64;
-        rect.density = area_s / ((rect.right - rect.left) * (rect.bottom - rect.top));
-        rect
-    }
-
     pub fn inside(&self, x: f64, y: f64) -> bool {
         x >= self.left && x <= self.right && y >= self.top && y <= self.bottom
     }
@@ -46,13 +16,52 @@ impl Rect {
         let h = self.bottom - self.top;
         w.max(h)
     }
+}
+
+#[derive(Clone, PartialEq, Default, Debug)]
+pub struct Boundary {
+    pub rect: Rect,
+    pub cx: f64,
+    pub cy: f64,
+    pub density: f64,
+}
+
+impl Boundary {
+    pub fn from_iter<I>(iter: I) -> Boundary where I: Iterator<Item = (f64, f64, f64)> {
+        let mut br = Boundary {
+            rect: Rect {
+                left: ::std::f64::MAX,
+                top: ::std::f64::MAX,
+                right: ::std::f64::MIN,
+                bottom: ::std::f64::MIN,
+            },
+            cx: 0.,
+            cy: 0.,
+            density: 0.,
+        };
+        let (mut cx_s, mut cy_s, mut area_s, mut total) = (0., 0., 0., 0);
+        for (x, y, radius) in iter {
+            br.rect.left = br.rect.left.min(x - radius);
+            br.rect.top = br.rect.top.min(y - radius);
+            br.rect.right = br.rect.right.max(x + radius);
+            br.rect.bottom = br.rect.bottom.max(y + radius);
+            cx_s += x;
+            cy_s += y;
+            area_s += ::std::f64::consts::PI * radius * radius;
+            total += 1;
+        }
+        br.cx = cx_s / total as f64;
+        br.cy = cy_s / total as f64;
+        br.density = area_s / ((br.rect.right - br.rect.left) * (br.rect.bottom - br.rect.top));
+        br
+    }
 
     pub fn sq_radius(&self) -> f64 {
-        let wl = self.cx - self.left;
-        let wr = self.right - self.cx;
+        let wl = self.cx - self.rect.left;
+        let wr = self.rect.right - self.cx;
         let w = wl.max(wr);
-        let ht = self.cy - self.top;
-        let hb = self.bottom - self.cy;
+        let ht = self.cy - self.rect.top;
+        let hb = self.rect.bottom - self.cy;
         let h = ht.max(hb);
         (w * w) + (h * h)
     }
@@ -64,7 +73,7 @@ impl Rect {
         upper_sq / lower_sq
     }
 
-    pub fn predict_collision(&self, target_x: f64, target_y: f64, obstacle: &Rect) -> bool {
+    pub fn predict_collision(&self, target_x: f64, target_y: f64, obstacle: &Boundary) -> bool {
         // check source
         let scalar = (obstacle.cx - self.cx) * (target_x - self.cx) + (obstacle.cy - self.cy) * (target_y - self.cy);
         if scalar < 0. {
@@ -81,7 +90,7 @@ impl Rect {
         sqd < limit
     }
 
-    pub fn correct_trajectory(&self, obstacle: &Rect) -> (f64, f64) {
+    pub fn correct_trajectory(&self, obstacle: &Boundary) -> (f64, f64) {
         let limit = self.sq_radius_fuzzy_sum(obstacle);
         let sq_dist = sq_dist(self.cx, self.cy, obstacle.cx, obstacle.cy);
         let factor_sq = limit / sq_dist;
@@ -91,7 +100,7 @@ impl Rect {
         (x, y)
     }
 
-    fn sq_radius_fuzzy_sum(&self, other: &Rect) -> f64 {
+    fn sq_radius_fuzzy_sum(&self, other: &Boundary) -> f64 {
         let sq_r_s = self.sq_radius();
         let sq_r_o = other.sq_radius();
         let sq_r_m = sq_r_s.max(sq_r_o);
@@ -105,19 +114,19 @@ pub fn sq_dist(fx: f64, fy: f64, x: f64, y: f64) -> f64 {
 
 #[cfg(test)]
 mod test {
-    use super::Rect;
+    use super::{Rect, Boundary};
 
     #[test]
     fn sq_radius() {
-        let ra = Rect { left: 10., top: 10., right: 14.0, bottom: 13.0, cx: 12., cy: 11.5, ..Default::default() };
+        let ra = Boundary { rect: Rect { left: 10., top: 10., right: 14.0, bottom: 13.0, }, cx: 12., cy: 11.5, ..Default::default() };
         assert_eq!(ra.sq_radius(), 6.25);
-        let rb = Rect { left: 10., top: 10., right: 15.0, bottom: 14.0, cx: 11., cy: 13., ..Default::default() };
+        let rb = Boundary { rect: Rect { left: 10., top: 10., right: 15.0, bottom: 14.0, }, cx: 11., cy: 13., ..Default::default() };
         assert_eq!(rb.sq_radius(), 25.);
     }
 
     #[test]
     fn sq_dist_to_line() {
-        let ra = Rect { left: 10., top: 10., right: 14.0, bottom: 14.0, cx: 12., cy: 12., ..Default::default() };
+        let ra = Boundary { rect: Rect { left: 10., top: 10., right: 14.0, bottom: 14.0, }, cx: 12., cy: 12., ..Default::default() };
         assert_eq!(ra.sq_dist_to_line(10.0, 10.0, 14.0, 10.0), 4.);
         assert_eq!(ra.sq_dist_to_line(10.0, 16.0, 14.0, 16.0), 16.);
         assert_eq!(ra.sq_dist_to_line(10.0, 10.0, 10.0, 14.0), 4.);
@@ -127,8 +136,8 @@ mod test {
 
     #[test]
     fn predict_collision() {
-        let ra = Rect { left: 20., top: 10., right: 25.0, bottom: 14.0, cx: 21., cy: 13., ..Default::default() };
-        let rb = Rect { left: 0., top: 10., right: 5.0, bottom: 14.0, cx: 1., cy: 13., ..Default::default() };
+        let ra = Boundary { rect: Rect { left: 20., top: 10., right: 25.0, bottom: 14.0, }, cx: 21., cy: 13., ..Default::default() };
+        let rb = Boundary { rect: Rect { left: 0., top: 10., right: 5.0, bottom: 14.0, }, cx: 1., cy: 13., ..Default::default() };
         assert_eq!(ra.sq_radius(), 25.0);
         assert_eq!(rb.sq_radius(), 25.0);
         assert_eq!(rb.predict_collision(20., 10., &ra), true);
@@ -140,8 +149,8 @@ mod test {
 
     #[test]
     fn correct_trajectory() {
-        let ra = Rect { left: 20., top: 10., right: 25.0, bottom: 14.0, cx: 21., cy: 13., ..Default::default() };
-        let rb = Rect { left: 0., top: 10., right: 5.0, bottom: 14.0, cx: 1., cy: 13., ..Default::default() };
+        let ra = Boundary { rect: Rect { left: 20., top: 10., right: 25.0, bottom: 14.0, }, cx: 21., cy: 13., ..Default::default() };
+        let rb = Boundary { rect: Rect { left: 0., top: 10., right: 5.0, bottom: 14.0, }, cx: 1., cy: 13., ..Default::default() };
         let (target_x, target_y) = rb.correct_trajectory(&ra);
         assert_eq!(target_x, 11.);
         assert_eq!(target_y, 13.);
@@ -150,20 +159,24 @@ mod test {
 
     #[test]
     fn correct_trajectory_a() {
-        let me = Rect {
-            left: 29.,
-            top: 81.97561338236046,
-            right: 57.,
-            bottom: 139.97561338236045,
+        let me = Boundary {
+            rect: Rect {
+                left: 29.,
+                top: 81.97561338236046,
+                right: 57.,
+                bottom: 139.97561338236045,
+            },
             cx: 43.,
             cy: 110.97561338236036,
             density: 0.386895646993817,
         };
-        let obstacle = Rect {
-            left: 59.,
-            top: 81.97561338236046,
-            right: 87.,
-            bottom: 139.97561338236045,
+        let obstacle = Boundary {
+            rect: Rect {
+                left: 59.,
+                top: 81.97561338236046,
+                right: 87.,
+                bottom: 139.97561338236045,
+            },
             cx: 73.,
             cy: 110.97561338236035,
             density: 0.386895646993817,
@@ -175,20 +188,24 @@ mod test {
 
     #[test]
     fn correct_trajectory_b() {
-        let me = Rect {
-            left: 164.,
-            top: 164.,
-            right: 222.,
-            bottom: 222.,
+        let me = Boundary {
+            rect: Rect {
+                left: 164.,
+                top: 164.,
+                right: 222.,
+                bottom: 222.,
+            },
             cx: 193.,
             cy: 193.,
             density: 0.37355441778713294,
         };
-        let obstacle = Rect {
-            left: 164.,
-            top: 90.,
-            right: 222.,
-            bottom: 148.,
+        let obstacle = Boundary {
+            rect: Rect {
+                left: 164.,
+                top: 90.,
+                right: 222.,
+                bottom: 148.,
+            },
             cx: 193.,
             cy: 119.,
             density: 0.37355441778713294,

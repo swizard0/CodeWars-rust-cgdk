@@ -3,7 +3,7 @@ use model::{ActionType, Action, Player, Game, VehicleType};
 use super::tactic::{Plan, Desire, Tactic};
 use super::formation::{Formations, FormationId};
 use super::common::collides;
-use super::geom::{sq_dist, Rect};
+use super::geom::{sq_dist, Boundary};
 
 pub struct Progamer {
     current: Option<FormationId>,
@@ -69,7 +69,7 @@ impl Progamer {
         form_id: FormationId,
         mut target_x: f64,
         mut target_y: f64,
-        self_bbox: Rect,
+        self_bbox: Boundary,
         self_kind: Option<VehicleType>)
         -> AnalyzeCollisions
     {
@@ -147,7 +147,7 @@ impl Progamer {
                         action.x = new_x - fx;
                         action.y = new_y - fy;
                     }
-                    let fd = self_bbox.max_side();
+                    let fd = self_bbox.rect.max_side();
                     if (new_x < fd) ||
                         (new_x > game.world_width - fd) ||
                         (new_y < fd) ||
@@ -254,7 +254,7 @@ impl Progamer {
             // formation is not selected
             let form_id = form.id;
             action.vehicle_type = form.kind().clone();
-            let bbox = form.bounding_box();
+            let bbox = &form.bounding_box().rect;
             debug!("selecting unbound formation {} of {:?}", form_id, action.vehicle_type);
             action.action = Some(ActionType::ClearAndSelect);
             action.left = bbox.left;

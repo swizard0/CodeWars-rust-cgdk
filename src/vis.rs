@@ -86,7 +86,7 @@ impl Visualizer {
             draw.push(Draw::Formation {
                 side,
                 kind: form.kind().clone(),
-                bbox: form.bounding_box().clone(),
+                bbox: form.bounding_box().rect.clone(),
             });
             for vehicle in form.vehicles() {
                 draw.push(Draw::Vehicle {

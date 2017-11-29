@@ -114,7 +114,7 @@ pub fn run<R>(mut form: FormationRef, atsral_fc: &mut AtsralForecast, tactic: &m
                     debug!("doctor is choosen for {} of {:?} w/{:?}: heading for ({}, {})", form.id, form.kind(), form.health(), healer_fx, healer_fy);
                     let (fx, fy, in_touch) = {
                         let bbox = form.bounding_box();
-                        (bbox.cx, bbox.cy, bbox.inside(healer_fx, healer_fy))
+                        (bbox.cx, bbox.cy, bbox.rect.inside(healer_fx, healer_fy))
                     };
                     if in_touch {
                         tactic.cancel(form.id);
@@ -445,7 +445,7 @@ pub fn basic_insticts<'a, R>(
 fn scout<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, rng: &mut R) where R: Rng {
     let (fx, fy, fd) = {
         let bbox = form.bounding_box();
-        (bbox.cx, bbox.cy, bbox.max_side())
+        (bbox.cx, bbox.cy, bbox.rect.max_side())
     };
     let mut x = gen_range_fuse(rng, 0. - fx, world.width - fx, fx);
     x /= consts::SCOUT_RANGE_FACTOR;
@@ -503,7 +503,7 @@ fn run_away<'a, R>(
 {
     let (fx, fy, fd) = {
         let bbox = form.bounding_box();
-        (bbox.cx, bbox.cy, bbox.max_side())
+        (bbox.cx, bbox.cy, bbox.rect.max_side())
     };
     let d_durability = {
         let (dvts, _) = form.dvt_sums(world.tick_index);

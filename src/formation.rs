@@ -3,8 +3,8 @@ use std::collections::hash_map::Entry;
 use super::rand::Rng;
 use model::{Vehicle, VehicleUpdate, VehicleType};
 use super::derivatives::Derivatives;
+use super::geom::{Rect, Boundary};
 use super::tactic::Plan;
-use super::geom::Rect;
 use super::side::Side;
 
 pub type FormationId = i32;
@@ -130,7 +130,7 @@ impl<'a> FormationRef<'a> {
         self.form.vehicles.len()
     }
 
-    pub fn bounding_box(&mut self) -> &Rect {
+    pub fn bounding_box(&mut self) -> &Boundary {
         self.form.bounding_box(self.by_vehicle_id)
     }
 
@@ -208,7 +208,7 @@ impl<'a> Drop for FormationBuilder<'a> {
 struct Formation {
     kind: Option<VehicleType>,
     vehicles: Vec<i64>,
-    bbox: Option<Rect>,
+    bbox: Option<Boundary>,
     update_tick: i32,
     stuck: bool,
     current_plan: Option<Plan>,
@@ -288,21 +288,21 @@ impl Formation {
         }
     }
 
-    fn bounding_box(&mut self, by_vehicle_id: &VehiclesDict) -> &Rect {
+    fn bounding_box(&mut self, by_vehicle_id: &VehiclesDict) -> &Boundary {
         let vehicles = &self.vehicles;
         self.bbox.get_or_insert_with(|| {
             let iter = vehicles
                 .iter()
                 .flat_map(|id| by_vehicle_id.get(id))
                 .map(|unit| (unit.vehicle.x, unit.vehicle.y, unit.vehicle.radius));
-            Rect::from_iter(iter)
+            Boundary::from_iter(iter)
         })
     }
 
     fn split(mut self, counter: &mut FormationId, by_vehicle_id: &mut VehiclesDict) ->
         ((FormationId, Formation), (FormationId, Formation))
     {
-        let bbox = self.bounding_box(by_vehicle_id).clone();
+        let bbox = self.bounding_box(by_vehicle_id).rect.clone();
         let width = bbox.right - bbox.left;
         let height = bbox.bottom - bbox.top;
         let (rect_a, rect_b) = if width >= height {
@@ -311,14 +311,12 @@ impl Formation {
                 top: bbox.top,
                 right: (bbox.left + bbox.right) / 2.,
                 bottom: bbox.bottom,
-                ..Default::default()
             },
              Rect {
                  left: (bbox.left + bbox.right) / 2.,
                  top: bbox.top,
                  right: bbox.right,
                  bottom: bbox.bottom,
-                 ..Default::default()
              })
         } else {
             (Rect {
@@ -326,14 +324,12 @@ impl Formation {
                 top: bbox.top,
                 right: bbox.right,
                 bottom: (bbox.top + bbox.bottom) / 2.,
-                ..Default::default()
             },
              Rect {
                  left: bbox.left,
                  top: (bbox.top + bbox.bottom) / 2.,
                  right: bbox.right,
                  bottom: bbox.bottom,
-                 ..Default::default()
              })
         };
 
