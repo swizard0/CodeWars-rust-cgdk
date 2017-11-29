@@ -10,21 +10,21 @@ mod env_logger;
 mod rand;
 
 #[path = "consts.rs"]
-mod consts;
+pub mod consts;
 #[path = "derivatives.rs"]
-mod derivatives;
+pub mod derivatives;
 #[path = "formation.rs"]
 pub mod formation;
 #[path = "instinct.rs"]
-mod instinct;
+pub mod instinct;
 #[path = "progamer.rs"]
-mod progamer;
+pub mod progamer;
 #[path = "tactic.rs"]
-mod tactic;
+pub mod tactic;
 #[path = "atsral.rs"]
-mod atsral;
+pub mod atsral;
 #[path = "common.rs"]
-mod common;
+pub mod common;
 #[path = "rect.rs"]
 pub mod rect;
 #[path = "side.rs"]
