@@ -1,8 +1,9 @@
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::cmp::Ordering;
-use super::rand::Rng;
 use model::VehicleType;
+use super::rand::Rng;
 use super::formation::FormationId;
+use super::geom::{AxisX, AxisY};
 
 #[derive(PartialEq, Debug)]
 pub struct Plan {
@@ -13,12 +14,12 @@ pub struct Plan {
 
 #[derive(PartialEq, Debug)]
 pub enum Desire {
-    ScoutTo { fx: f64, fy: f64, x: f64, y: f64, kind: Option<VehicleType>, sq_dist: f64, },
-    Attack { fx: f64, fy: f64, x: f64, y: f64, sq_dist: f64, },
-    Escape { fx: f64, fy: f64, x: f64, y: f64, danger_coeff: f64, corrected: bool, },
-    Hunt { fx: f64, fy: f64, x: f64, y: f64, damage: i32, foe: Option<VehicleType>, },
-    HurryToDoctor { fx: f64, fy: f64, x: f64, y: f64, sq_dist: f64, },
-    Nuke { vehicle_id: i64, fx: f64, fy: f64, strike_x: f64, strike_y: f64, },
+    ScoutTo { fx: AxisX, fy: AxisY, x: AxisX, y: AxisY, kind: Option<VehicleType>, sq_dist: f64, },
+    Attack { fx: AxisX, fy: AxisY, x: AxisX, y: AxisY, sq_dist: f64, },
+    Escape { fx: AxisX, fy: AxisY, x: AxisX, y: AxisY, danger_coeff: f64, corrected: bool, },
+    Hunt { fx: AxisX, fy: AxisY, x: AxisX, y: AxisY, damage: i32, foe: Option<VehicleType>, },
+    HurryToDoctor { fx: AxisX, fy: AxisY, x: AxisX, y: AxisY, sq_dist: f64, },
+    Nuke { vehicle_id: i64, fx: AxisX, fy: AxisY, strike_x: AxisX, strike_y: AxisY, },
     FormationSplit { group_size: usize, forced: bool, },
 }
 
@@ -206,29 +207,38 @@ fn compare_vehicle_types(k_a: &Option<VehicleType>, k_b: &Option<VehicleType>) -
 #[cfg(test)]
 mod test {
     use std::cmp::{max, Ordering};
-    use super::{Plan, Desire};
     use model::VehicleType;
+    use super::{Plan, Desire};
+    use super::super::geom::{axis_x, axis_y};
 
     #[test]
     fn scout_to() {
         assert_eq!(max(
             Plan {
                 form_id: 1, tick: 0,
-                desire: Desire::ScoutTo { fx: 10., fy: 10., x: 20., y: 20., kind: Some(VehicleType::Ifv), sq_dist: 200., },
+                desire: Desire::ScoutTo {
+                    fx: axis_x(10.), fy: axis_y(10.), x: axis_x(20.), y: axis_y(20.), kind: Some(VehicleType::Ifv), sq_dist: 200.,
+                },
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::ScoutTo { fx: 10., fy: 10., x: 15., y: 15., kind: Some(VehicleType::Ifv), sq_dist: 50., },
+                desire: Desire::ScoutTo {
+                    fx: axis_x(10.), fy: axis_y(10.), x: axis_x(15.), y: axis_y(15.), kind: Some(VehicleType::Ifv), sq_dist: 50.,
+                },
             }
         ).form_id, 1);
         assert_eq!(max(
             Plan {
                 form_id: 1, tick: 0,
-                desire: Desire::ScoutTo { fx: 10., fy: 10., x: 20., y: 20., kind: Some(VehicleType::Ifv), sq_dist: 200., },
+                desire: Desire::ScoutTo {
+                    fx: axis_x(10.), fy: axis_y(10.), x: axis_x(20.), y: axis_y(20.), kind: Some(VehicleType::Ifv), sq_dist: 200.,
+                },
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::ScoutTo { fx: 10., fy: 10., x: 15., y: 15., kind: Some(VehicleType::Fighter), sq_dist: 50., },
+                desire: Desire::ScoutTo {
+                    fx: axis_x(10.), fy: axis_y(10.), x: axis_x(15.), y: axis_y(15.), kind: Some(VehicleType::Fighter), sq_dist: 50.,
+                },
             }
         ).form_id, 2);
         assert_eq!(max(
@@ -238,7 +248,9 @@ mod test {
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::ScoutTo { fx: 10., fy: 10., x: 15., y: 15., kind: Some(VehicleType::Fighter), sq_dist: 50., },
+                desire: Desire::ScoutTo {
+                    fx: axis_x(10.), fy: axis_y(10.), x: axis_x(15.), y: axis_y(15.), kind: Some(VehicleType::Fighter), sq_dist: 50.,
+                },
             }
         ).form_id, 2);
     }
@@ -248,11 +260,11 @@ mod test {
         assert_eq!(Ord::cmp(
             &Plan {
                 form_id: 1, tick: 0,
-                desire: Desire::Nuke { vehicle_id: 1, fx: 0., fy: 0., strike_x: 10., strike_y: 10., },
+                desire: Desire::Nuke { vehicle_id: 1, fx: axis_x(0.), fy: axis_y(0.), strike_x: axis_x(10.), strike_y: axis_y(10.), },
             },
             &Plan {
                 form_id: 1, tick: 0,
-                desire: Desire::Nuke { vehicle_id: 2, fx: 0., fy: 0., strike_x: 20., strike_y: 30., },
+                desire: Desire::Nuke { vehicle_id: 2, fx: axis_x(0.), fy: axis_y(0.), strike_x: axis_x(20.), strike_y: axis_y(30.), },
             }
         ), Ordering::Equal);
         assert_eq!(max(
@@ -262,7 +274,7 @@ mod test {
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::Nuke { vehicle_id: 1, fx: 0., fy: 0., strike_x: 10., strike_y: 10., },
+                desire: Desire::Nuke { vehicle_id: 1, fx: axis_x(0.), fy: axis_y(0.), strike_x: axis_x(10.), strike_y: axis_y(10.), },
             }
         ).form_id, 2);
     }
@@ -273,11 +285,11 @@ mod test {
         assert_eq!(max(
             Plan {
                 form_id: 1, tick: 0,
-                desire: Desire::Attack { fx: 10., fy: 10., x: 20., y: 20., sq_dist: 200., },
+                desire: Desire::Attack { fx: axis_x(10.), fy: axis_y(10.), x: axis_x(20.), y: axis_y(20.), sq_dist: 200., },
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::Attack { fx: 10., fy: 10., x: 15., y: 15., sq_dist: 50., },
+                desire: Desire::Attack { fx: axis_x(10.), fy: axis_y(10.), x: axis_x(15.), y: axis_y(15.), sq_dist: 50., },
             }
         ).form_id, 1);
         assert_eq!(max(
@@ -287,7 +299,7 @@ mod test {
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::Attack { fx: 10., fy: 10., x: 15., y: 15., sq_dist: 50., },
+                desire: Desire::Attack { fx: axis_x(10.), fy: axis_y(10.), x: axis_x(15.), y: axis_y(15.), sq_dist: 50., },
             }
         ).form_id, 2);
     }
@@ -297,11 +309,11 @@ mod test {
         assert_eq!(max(
             Plan {
                 form_id: 1, tick: 0,
-                desire: Desire::HurryToDoctor { fx: 10., fy: 10., x: 20., y: 20., sq_dist: 200., },
+                desire: Desire::HurryToDoctor { fx: axis_x(10.), fy: axis_y(10.), x: axis_x(20.), y: axis_y(20.), sq_dist: 200., },
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::HurryToDoctor { fx: 10., fy: 10., x: 15., y: 15., sq_dist: 50., },
+                desire: Desire::HurryToDoctor { fx: axis_x(10.), fy: axis_y(10.), x: axis_x(15.), y: axis_y(15.), sq_dist: 50., },
             }
         ).form_id, 1);
         assert_eq!(max(
@@ -311,7 +323,7 @@ mod test {
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::HurryToDoctor { fx: 10., fy: 10., x: 15., y: 15., sq_dist: 50., },
+                desire: Desire::HurryToDoctor { fx: axis_x(10.), fy: axis_y(10.), x: axis_x(15.), y: axis_y(15.), sq_dist: 50., },
             }
         ).form_id, 2);
     }
@@ -321,11 +333,11 @@ mod test {
         assert_eq!(max(
             Plan {
                 form_id: 1, tick: 0,
-                desire: Desire::Hunt { fx: 10., fy: 10., x: 20., y: 20., damage: 200, foe: None, },
+                desire: Desire::Hunt { fx: axis_x(10.), fy: axis_y(10.), x: axis_x(20.), y: axis_y(20.), damage: 200, foe: None, },
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::Hunt { fx: 10., fy: 10., x: 15., y: 15., damage: 50, foe: None, },
+                desire: Desire::Hunt { fx: axis_x(10.), fy: axis_y(10.), x: axis_x(15.), y: axis_y(15.), damage: 50, foe: None, },
             }
         ).form_id, 1);
         assert_eq!(max(
@@ -335,7 +347,7 @@ mod test {
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::Hunt { fx: 10., fy: 10., x: 15., y: 15., damage: 50, foe: None, },
+                desire: Desire::Hunt { fx: axis_x(10.), fy: axis_y(10.), x: axis_x(15.), y: axis_y(15.), damage: 50, foe: None, },
             }
         ).form_id, 2);
     }
@@ -345,11 +357,11 @@ mod test {
         assert_eq!(max(
             Plan {
                 form_id: 1, tick: 0,
-                desire: Desire::Escape { fx: 10., fy: 10., x: 20., y: 20., danger_coeff: 200., corrected: false, },
+                desire: Desire::Escape { fx: axis_x(10.), fy: axis_y(10.), x: axis_x(20.), y: axis_y(20.), danger_coeff: 200., corrected: false, },
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::Escape { fx: 10., fy: 10., x: 15., y: 15., danger_coeff: 50., corrected: false, },
+                desire: Desire::Escape { fx: axis_x(10.), fy: axis_y(10.), x: axis_x(15.), y: axis_y(15.), danger_coeff: 50., corrected: false, },
             }
         ).form_id, 1);
         assert_eq!(max(
@@ -359,7 +371,7 @@ mod test {
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::Escape { fx: 10., fy: 10., x: 15., y: 15., danger_coeff: 50., corrected: false, },
+                desire: Desire::Escape { fx: axis_x(10.), fy: axis_y(10.), x: axis_x(15.), y: axis_y(15.), danger_coeff: 50., corrected: false, },
             }
         ).form_id, 2);
     }
@@ -383,7 +395,7 @@ mod test {
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::Attack { fx: 10., fy: 10., x: 15., y: 15., sq_dist: 25., },
+                desire: Desire::Attack { fx: axis_x(10.), fy: axis_y(10.), x: axis_x(15.), y: axis_y(15.), sq_dist: 25., },
             }
         ).form_id, 2);
         assert_eq!(max(
@@ -393,7 +405,7 @@ mod test {
             },
             Plan {
                 form_id: 2, tick: 0,
-                desire: Desire::Attack { fx: 10., fy: 10., x: 15., y: 15., sq_dist: 25., },
+                desire: Desire::Attack { fx: axis_x(10.), fy: axis_y(10.), x: axis_x(15.), y: axis_y(15.), sq_dist: 25., },
             }
         ).form_id, 1);
     }

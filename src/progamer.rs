@@ -3,7 +3,7 @@ use model::{ActionType, Action, Player, Game, VehicleType};
 use super::tactic::{Plan, Desire, Tactic};
 use super::formation::{Formations, FormationId};
 use super::common::collides;
-use super::geom::{sq_dist, Boundary};
+use super::geom::{sq_dist, axis_x, axis_y, Point, Rect, Boundary};
 
 pub struct Progamer {
     current: Option<FormationId>,
@@ -13,7 +13,7 @@ pub struct Progamer {
 
 enum GosuClick {
     NothingInteresting,
-    Move { form_id: FormationId, target_x: f64, target_y: f64, },
+    Move { form_id: FormationId, target: Point, },
     Split(FormationId),
 }
 
@@ -41,7 +41,7 @@ impl Progamer {
                     (),
                 GosuClick::Split(form_id) =>
                     formations.split(form_id),
-                GosuClick::Move { form_id, target_x, target_y, } => {
+                GosuClick::Move { form_id, target, } => {
                     let (self_bbox, self_kind) = if let Some(mut form) = formations.get_by_id(form_id) {
                         *form.stuck() = false;
                         (form.bounding_box().clone(), form.kind().clone())
@@ -49,7 +49,7 @@ impl Progamer {
                         unreachable!()
                     };
 
-                    match self.analyze_collisions(formations, game, action, form_id, target_x, target_y, self_bbox, self_kind) {
+                    match self.analyze_collisions(formations, game, action, form_id, target, self_bbox, self_kind) {
                         AnalyzeCollisions::NothingInteresting =>
                             (),
                         AnalyzeCollisions::MoveCancelled =>
@@ -67,15 +67,14 @@ impl Progamer {
         game: &Game,
         action: &mut Action,
         form_id: FormationId,
-        mut target_x: f64,
-        mut target_y: f64,
+        mut target: Point,
         self_bbox: Boundary,
         self_kind: Option<VehicleType>)
         -> AnalyzeCollisions
     {
         self.coll_filter.clear();
         loop {
-            let mut closest_bbox: Option<(f64, f64, f64, f64, FormationId, Option<_>, f64)> = None;
+            let mut closest_bbox: Option<(f64, Point, f64, FormationId, Option<_>, f64)> = None;
             {
                 // detect possible collisions
                 let mut forms_iter = formations.iter();
@@ -89,17 +88,17 @@ impl Progamer {
                         continue;
                     }
                     let bbox = form.bounding_box();
-                    if self_bbox.predict_collision(target_x, target_y, bbox) {
+                    if self_bbox.predict_collision(&target, bbox) {
                         let dist_to_obstacle =
                             sq_dist(self_bbox.cx, self_bbox.cy, bbox.cx, bbox.cy);
                         if closest_bbox.as_ref().map(|c| dist_to_obstacle < c.0).unwrap_or(true) {
-                            let (new_x, new_y) = self_bbox.correct_trajectory(bbox);
-                            closest_bbox = Some((dist_to_obstacle, new_x, new_y, self_bbox.density, fid, form_kind, bbox.density));
+                            let new_target = self_bbox.correct_trajectory(bbox);
+                            closest_bbox = Some((dist_to_obstacle, new_target, self_bbox.density, fid, form_kind, bbox.density));
                         }
                     }
                 }
             }
-            if let Some((_, new_x, new_y, density, collide_form_id, collide_kind, collide_density)) = closest_bbox {
+            if let Some((_, new_target, density, collide_form_id, collide_kind, collide_density)) = closest_bbox {
                 if let Some(mut form) = formations.get_by_id(form_id) {
                     let kind = form.kind().clone();
                     if self.coll_filter.contains(&collide_form_id) {
@@ -139,21 +138,19 @@ impl Progamer {
                                     return AnalyzeCollisions::NothingInteresting,
                             };
                         debug!("correcting {} move {} of {:?} density {}: ({}, {}) -> ({}, {}) -- colliding with {} of {:?} density {}",
-                               move_name, form_id, kind, density, x, y, new_x, new_y, collide_form_id, collide_kind, collide_density);
-                        *x = new_x;
-                        *y = new_y;
-                        target_x = new_x;
-                        target_y = new_y;
-                        action.x = new_x - fx;
-                        action.y = new_y - fy;
+                               move_name, form_id, kind, density, x, y, new_target.x, new_target.y, collide_form_id, collide_kind, collide_density);
+                        *x = new_target.x;
+                        *y = new_target.y;
+                        target = new_target;
+                        action.x = (new_target.x - fx).x;
+                        action.y = (new_target.y - fy).y;
                     }
                     let fd = self_bbox.rect.max_side();
-                    if (new_x < fd) ||
-                        (new_x > game.world_width - fd) ||
-                        (new_y < fd) ||
-                        (new_y > game.world_height - fd) ||
-                        (action.x == 0. && action.y == 0.)
-                    {
+                    let screen = Rect {
+                        lt: Point { x: axis_x(fd), y: axis_y(fd), },
+                        rb: Point { x: axis_x(game.world_width - fd), y: axis_y(game.world_height - fd), },
+                    };
+                    if !screen.inside(&new_target) || (action.x == 0. && action.y == 0.) {
                         debug!("seems like formation {} of {:?} is slightly stuck: cancelling the move", form_id, kind);
                         action.action = None;
                         // *form.stuck() = true;
@@ -198,44 +195,43 @@ impl Progamer {
                 Some(Plan { desire: Desire::ScoutTo { fx, fy, x, y, .. }, .. }) => {
                     debug!("scout formation {} of {:?} w/{:?} aiming ({}, {})", form.id, form.kind(), form.health(), x, y);
                     action.action = Some(ActionType::Move);
-                    action.x = x - fx;
-                    action.y = y - fy;
-                    GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
+                    action.x = (x - fx).x;
+                    action.y = (y - fy).y;
+                    GosuClick::Move { form_id: form.id, target: Point { x, y }, }
                 },
                 Some(Plan { desire: Desire::Attack { fx, fy, x, y, .. }, .. }) => {
                     debug!("attack formation {} of {:?} w/{:?} aiming ({}, {})", form.id, form.kind(), form.health(), x, y);
                     action.action = Some(ActionType::Move);
-                    action.x = x - fx;
-                    action.y = y - fy;
-                    GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
+                    action.x = (x - fx).x;
+                    action.y = (y - fy).y;
+                    GosuClick::Move { form_id: form.id, target: Point { x, y }, }
                 },
                 Some(Plan { desire: Desire::Escape { fx, fy, x, y, danger_coeff, corrected }, .. }) => {
                     debug!("escape {}formation {} of {:?} w/{:?} danger {} aiming ({}, {})",
                            if corrected { "(corrected) " } else { "" },
                            form.id, form.kind(), form.health(), danger_coeff, x, y);
                     action.action = Some(ActionType::Move);
-                    action.x = x - fx;
-                    action.y = y - fy;
-                    GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
+                    action.x = (x - fx).x;
+                    action.y = (y - fy).y;
+                    GosuClick::Move { form_id: form.id, target: Point { x, y }, }
                 },
                 Some(Plan { desire: Desire::Hunt { fx, fy, x, y, .. }, .. }) => {
                     debug!("hunt formation {} of {:?} w/{:?} aiming ({}, {})", form.id, form.kind(), form.health(), x, y);
                     action.action = Some(ActionType::Move);
-                    action.x = x - fx;
-                    action.y = y - fy;
-                    GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
+                    action.x = (x - fx).x;
+                    action.y = (y - fy).y;
+                    GosuClick::Move { form_id: form.id, target: Point { x, y }, }
                 },
                 Some(Plan { desire: Desire::HurryToDoctor { fx, fy, x, y, .. }, .. }) => {
                     debug!("hurry to doctor formation {} of {:?} w/{:?} aiming ({}, {})", form.id, form.kind(), form.health(), x, y);
                     action.action = Some(ActionType::Move);
-                    action.x = x - fx;
-                    action.y = y - fy;
-                    GosuClick::Move { form_id: form.id, target_x: x, target_y: y, }
+                    action.x = (x - fx).x;
+                    action.y = (y - fy).y;
+                    GosuClick::Move { form_id: form.id, target: Point { x, y }, }
                 },
                 Some(Plan { desire: Desire::FormationSplit { group_size, forced, }, .. }) => {
                     debug!("splitting ({}) formation {} of {} vehicles", if forced { "forced" } else { "regular" }, form.id, group_size);
-                    action.action = Some(ActionType::Dismiss);
-                    action.group = form.id;
+                    action.action = None;
                     GosuClick::Split(form.id)
                 },
                 Some(Plan { desire: Desire::Nuke { vehicle_id, strike_x, strike_y, .. }, .. }) => {
@@ -243,8 +239,8 @@ impl Progamer {
                            vehicle_id, form.id, form.kind(), strike_x, strike_y);
                     action.action = Some(ActionType::TacticalNuclearStrike);
                     action.vehicle_id = vehicle_id;
-                    action.x = strike_x;
-                    action.y = strike_y;
+                    action.x = strike_x.x;
+                    action.y = strike_y.y;
                     GosuClick::NothingInteresting
                 },
                 None =>
@@ -257,10 +253,10 @@ impl Progamer {
             let bbox = &form.bounding_box().rect;
             debug!("selecting unbound formation {} of {:?}", form_id, action.vehicle_type);
             action.action = Some(ActionType::ClearAndSelect);
-            action.left = bbox.left();
-            action.top = bbox.top();
-            action.right = bbox.right();
-            action.bottom = bbox.bottom();
+            action.left = bbox.left().x;
+            action.top = bbox.top().y;
+            action.right = bbox.right().x;
+            action.bottom = bbox.bottom().y;
             self.current = Some(form_id);
             self.selection = Some(form_id);
             GosuClick::NothingInteresting

@@ -5,25 +5,25 @@ use super::formation::{FormationId, FormationRef};
 use super::tactic::{Tactic, Plan, Desire};
 use super::atsral::{Atsral, AtsralForecast, Cry, FoeFormation};
 use super::common::{combat_info, VehicleForm};
-use super::geom::sq_dist;
+use super::geom::{sq_dist, axis_x, axis_y, Point, AxisX, AxisY};
 
 enum AtsralProclaims {
     Tranquillity,
     ReadyToHelp {
         form_id: FormationId,
-        distress_fx: f64,
-        distress_fy: f64,
-        escape_x: f64,
-        escape_y: f64,
+        distress_fx: AxisX,
+        distress_fy: AxisY,
+        escape_x: AxisX,
+        escape_y: AxisY,
         foe: Option<FoeFormation>
     },
-    ProtectorIsChoosen { form_id: FormationId, fx: f64, fy: f64, },
-    GoPunish { distress_fx: f64, distress_fy: f64, },
-    GoHunt { fx: f64, fy: f64, damage: i32, foe: Option<FoeFormation>, },
-    NukeThem { fx: f64, fy: f64, foe_fx: f64, foe_fy: f64, },
-    ReadyToHeal { form_id: FormationId, ill_fx: f64, ill_fy: f64, },
-    DoctorIsChoosen { healer_fx: f64, healer_fy: f64, sq_dist: f64, },
-    EscapeCorrect { fx: f64, fy: f64, foe_fx: f64, foe_fy: f64, },
+    ProtectorIsChoosen { form_id: FormationId, fx: AxisX, fy: AxisY, },
+    GoPunish { distress_fx: AxisX, distress_fy: AxisY, },
+    GoHunt { fx: AxisX, fy: AxisY, damage: i32, foe: Option<FoeFormation>, },
+    NukeThem { fx: AxisX, fy: AxisY, foe_fx: AxisX, foe_fy: AxisY, },
+    ReadyToHeal { form_id: FormationId, ill_fx: AxisX, ill_fy: AxisY, },
+    DoctorIsChoosen { healer_fx: AxisX, healer_fy: AxisY, sq_dist: f64, },
+    EscapeCorrect { fx: AxisX, fy: AxisY, foe_fx: AxisX, foe_fy: AxisY, },
 }
 
 pub struct Config<'a> {
@@ -114,7 +114,7 @@ pub fn run<R>(mut form: FormationRef, atsral_fc: &mut AtsralForecast, tactic: &m
                     debug!("doctor is choosen for {} of {:?} w/{:?}: heading for ({}, {})", form.id, form.kind(), form.health(), healer_fx, healer_fy);
                     let (fx, fy, in_touch) = {
                         let bbox = form.bounding_box();
-                        (bbox.cx, bbox.cy, bbox.rect.inside(healer_fx, healer_fy))
+                        (bbox.cx, bbox.cy, bbox.rect.inside(&Point { x: healer_fx, y: healer_fy, }))
                     };
                     if in_touch {
                         tactic.cancel(form.id);
@@ -287,10 +287,10 @@ pub fn basic_insticts<'a, R>(
         GoCurious,
         Scatter,
         ScatterOrScout,
-        RunAway(Option<(f64, f64, f64, f64)>),
-        YellForHelp { fx: f64, fy: f64, escape_x: f64, escape_y: f64, },
-        YellForDoctor { fx: f64, fy: f64, },
-        YellForHunt { fx: f64, fy: f64, },
+        RunAway(Option<(AxisX, AxisY, AxisX, AxisY)>),
+        YellForHelp { fx: AxisX, fy: AxisY, escape_x: AxisX, escape_y: AxisY, },
+        YellForDoctor { fx: AxisX, fy: AxisY, },
+        YellForHunt { fx: AxisX, fy: AxisY, },
     }
 
 
@@ -447,14 +447,14 @@ fn scout<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, 
         let bbox = form.bounding_box();
         (bbox.cx, bbox.cy, bbox.rect.max_side())
     };
-    let mut x = gen_range_fuse(rng, 0. - fx, world.width - fx, fx);
+    let mut x = gen_range_fuse(rng, 0. - fx.x, world.width - fx.x, fx.x);
     x /= consts::SCOUT_RANGE_FACTOR;
-    x += fx;
+    x += fx.x;
     if x < fd { x = fd; }
     if x > world.width - fd { x = world.width - fd; }
-    let mut y = gen_range_fuse(rng, 0. - fy, world.height - fy, fy);
+    let mut y = gen_range_fuse(rng, 0. - fy.y, world.height - fy.y, fy.y);
     y /= consts::SCOUT_RANGE_FACTOR;
-    y += fy;
+    y += fy.y;
     if y < fd { y = fd; }
     if y > world.height - fd { y = world.height - fd; }
 
@@ -462,9 +462,11 @@ fn scout<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, 
         form_id: form.id,
         tick: world.tick_index,
         desire: Desire::ScoutTo {
-            fx, fy, x, y,
+            fx, fy,
+            x: axis_x(x),
+            y: axis_y(y),
             kind: form.kind().clone(),
-            sq_dist: sq_dist(fx, fy, x, y),
+            sq_dist: sq_dist(fx, fy, axis_x(x), axis_y(y)),
         },
     });
 }
@@ -493,7 +495,7 @@ fn scatter<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic
 }
 
 fn run_away<'a, R>(
-    escape_vec: Option<(f64, f64, f64, f64)>,
+    escape_vec: Option<(AxisX, AxisY, AxisX, AxisY)>,
     corrected: bool,
     mut form: FormationRef<'a>,
     world: &World,
@@ -515,7 +517,7 @@ fn run_away<'a, R>(
         .and_then(|(start_x, start_y, end_x, end_y)| {
             let x = fx + (end_x - start_x) * consts::ESCAPE_BOUNCE_FACTOR;
             let y = fy + (end_y - start_y) * consts::ESCAPE_BOUNCE_FACTOR;
-            if x > fd && x < (world.width - fd) && y > fd && y < (world.height - fd) {
+            if x.x > fd && x.x < (world.width - fd) && y.y > fd && y.y < (world.height - fd) {
                 Some((x, y))
             } else {
                 None
@@ -523,8 +525,8 @@ fn run_away<'a, R>(
         })
         .unwrap_or_else(|| {
             // cannot detect right escape direction: run away in random one
-            let x = gen_range_fuse(rng, fd, world.width - fd, world.width / 2.);
-            let y = gen_range_fuse(rng, fd, world.height - fd, world.height / 2.);
+            let x = axis_x(gen_range_fuse(rng, fd, world.width - fd, world.width / 2.));
+            let y = axis_y(gen_range_fuse(rng, fd, world.height - fd, world.height / 2.));
             (x, y)
         });
     tactic.plan(rng, Plan {

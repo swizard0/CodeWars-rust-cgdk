@@ -3,7 +3,7 @@ use std::collections::hash_map::Entry;
 use super::rand::Rng;
 use model::{Vehicle, VehicleUpdate, VehicleType};
 use super::derivatives::Derivatives;
-use super::geom::{Point, Rect, Boundary};
+use super::geom::{axis_x, axis_y, Point, Rect, Boundary};
 use super::tactic::Plan;
 use super::side::Side;
 
@@ -305,7 +305,7 @@ impl Formation {
         let bbox = self.bounding_box(by_vehicle_id).rect.clone();
         let width = bbox.right() - bbox.left();
         let height = bbox.bottom() - bbox.top();
-        let (rect_a, rect_b) = if width >= height {
+        let (rect_a, rect_b) = if width.x >= height.y {
             (Rect {
                 lt: bbox.lt,
                 rb: Point { x: bbox.mid_x(), y: bbox.bottom(), },
@@ -334,10 +334,11 @@ impl Formation {
         let mut form_b = Formation::new(self.kind.clone(), self.update_tick);
         for vehicle_id in self.vehicles {
             if let Some(unit) = by_vehicle_id.get_mut(&vehicle_id) {
-                if rect_a.inside(unit.vehicle.x, unit.vehicle.y) {
+                let coord = Point { x: axis_x(unit.vehicle.x), y: axis_y(unit.vehicle.y), };
+                if rect_a.inside(&coord) {
                     unit.form_id = id_a;
                     form_a.add(&unit.vehicle);
-                } else if rect_b.inside(unit.vehicle.x, unit.vehicle.y) {
+                } else if rect_b.inside(&coord) {
                     unit.form_id = id_b;
                     form_b.add(&unit.vehicle);
                 } else {

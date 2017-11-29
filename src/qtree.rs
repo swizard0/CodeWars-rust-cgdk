@@ -56,7 +56,7 @@ impl<T> Node<T> {
                     node: None,
                 },
                 QuarterRect {
-                    rect: Rect { lt: Point { x: parent.left(), y: mid_y, }, rb: Point { x: mid_y, y: parent.bottom(), } },
+                    rect: Rect { lt: Point { x: parent.left(), y: mid_y, }, rb: Point { x: mid_x, y: parent.bottom(), } },
                     node: None,
                 },
             ],
@@ -73,21 +73,45 @@ impl<T> Node<T> {
 
 #[cfg(test)]
 mod test {
-    use super::super::geom::{Point, Rect};
+    use super::super::geom::{axis_x, axis_y, Point, Rect};
     use super::{QuadTree, QuarterRect, Node};
 
     #[test]
     fn make_new() {
         let tree: QuadTree<()> =
-            QuadTree::new(Rect { lt: Point { x: 0., y: 0., }, rb: Point { x: 100., y: 100., }, });
+            QuadTree::new(Rect { lt: Point { x: axis_x(0.), y: axis_y(0.), }, rb: Point { x: axis_x(100.), y: axis_y(100.), }, });
         assert_eq!(tree, QuadTree {
-            rect: Rect { lt: Point { x: 0., y: 0., }, rb: Point { x: 100., y: 100., }, },
+            rect: Rect { lt: Point { x: axis_x(0.), y: axis_y(0.), }, rb: Point { x: axis_x(100.), y: axis_y(100.), }, },
             root: Node {
                 children: [
-                    QuarterRect { rect: Rect { lt: Point { x: 0., y: 0., }, rb: Point { x: 50., y: 50., } }, node: None, },
-                    QuarterRect { rect: Rect { lt: Point { x: 50., y: 0., }, rb: Point { x: 100., y: 50., } }, node: None, },
-                    QuarterRect { rect: Rect { lt: Point { x: 50., y: 50., }, rb: Point { x: 100., y: 100., } }, node: None, },
-                    QuarterRect { rect: Rect { lt: Point { x: 0., y: 50., }, rb: Point { x: 50., y: 100., } }, node: None, },
+                    QuarterRect {
+                        rect: Rect {
+                            lt: Point { x: axis_x(0.), y: axis_y(0.), },
+                            rb: Point { x: axis_x(50.), y: axis_y(50.), },
+                        },
+                        node: None,
+                    },
+                    QuarterRect {
+                        rect: Rect {
+                            lt: Point { x: axis_x(50.), y: axis_y(0.), },
+                            rb: Point { x: axis_x(100.), y: axis_y(50.), },
+                        },
+                        node: None,
+                    },
+                    QuarterRect {
+                        rect: Rect {
+                            lt: Point { x: axis_x(50.), y: axis_y(50.), },
+                            rb: Point { x: axis_x(100.), y: axis_y(100.), },
+                        },
+                        node: None,
+                    },
+                    QuarterRect {
+                        rect: Rect {
+                            lt: Point { x: axis_x(0.), y: axis_y(50.), },
+                            rb: Point { x: axis_x(50.), y: axis_y(100.), },
+                        },
+                        node: None,
+                    },
                 ],
                 items: vec![],
             }

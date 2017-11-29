@@ -2,14 +2,14 @@ use std::collections::HashMap;
 use model::{VehicleType, Game};
 use super::formation::{FormationId, Formations};
 use super::common::combat_info;
-use super::geom::sq_dist;
+use super::geom::{sq_dist, AxisX, AxisY};
 use super::consts;
 
 #[derive(Clone, Debug)]
 pub struct FoeFormation {
     pub kind: VehicleType,
-    pub fx: f64,
-    pub fy: f64,
+    pub fx: AxisX,
+    pub fy: AxisY,
     sq_dist: f64,
 }
 
@@ -17,60 +17,60 @@ pub struct FoeFormation {
 pub enum Cry {
     ImUnderAttack {
         form_id: FormationId,
-        fx: f64,
-        fy: f64,
-        escape_x: f64,
-        escape_y: f64,
+        fx: AxisX,
+        fy: AxisY,
+        escape_x: AxisX,
+        escape_y: AxisY,
         foe: Option<FoeFormation>, },
     ReadyToHelp {
         recipient: FormationId,
         helper_form_id: FormationId,
         helper_kind: Option<VehicleType>,
-        helper_fx: f64,
-        helper_fy: f64,
-        distress_fx: f64,
-        distress_fy: f64,
-        escape_x: f64,
-        escape_y: f64,
+        helper_fx: AxisX,
+        helper_fy: AxisY,
+        distress_fx: AxisX,
+        distress_fy: AxisY,
+        escape_x: AxisX,
+        escape_y: AxisY,
         foe: Option<FoeFormation>,
     },
     ComePunishThem {
         recipient: FormationId,
-        distress_fx: f64,
-        distress_fy: f64,
+        distress_fx: AxisX,
+        distress_fy: AxisY,
     },
     ReadyToHunt {
         form_id: FormationId,
         kind: Option<VehicleType>,
-        fx: f64,
-        fy: f64,
+        fx: AxisX,
+        fy: AxisY,
     },
-    ComeHuntHim { fx: f64, fy: f64, damage: i32, foe: Option<FoeFormation>, },
-    NeedDoctor { form_id: FormationId, fx: f64, fy: f64, },
+    ComeHuntHim { fx: AxisX, fy: AxisY, damage: i32, foe: Option<FoeFormation>, },
+    NeedDoctor { form_id: FormationId, fx: AxisX, fy: AxisY, },
     ReadyToHeal {
         recipient: FormationId,
         healer_form_id: FormationId,
-        healer_fx: f64,
-        healer_fy: f64,
-        ill_fx: f64,
-        ill_fy: f64,
+        healer_fx: AxisX,
+        healer_fy: AxisY,
+        ill_fx: AxisX,
+        ill_fy: AxisY,
     },
 }
 
 struct NearestFoe {
     form_id: FormationId,
-    fx: f64,
-    fy: f64,
-    escape_x: f64,
-    escape_y: f64,
+    fx: AxisX,
+    fy: AxisY,
+    escape_x: AxisX,
+    escape_y: AxisY,
     nearest: Option<FoeFormation>,
 }
 
 struct WeakestFoe {
     form_id: FormationId,
     kind: Option<VehicleType>,
-    fx: f64,
-    fy: f64,
+    fx: AxisX,
+    fy: AxisY,
     nearest: Option<FoeFormation>,
     damage: i32,
 }
