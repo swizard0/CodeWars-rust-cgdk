@@ -145,10 +145,10 @@ fn painter_loop(tx: &mpsc::Sender<Trigger>, rx: &mpsc::Receiver<DrawPacket>) {
                             let mut color = vehicle_color(side, kind);
                             color[3] = 0.1;
                             let coords = [
-                                tr.x(bbox.left),
-                                tr.y(bbox.top),
-                                tr.scale_x(bbox.right - bbox.left),
-                                tr.scale_y(bbox.bottom - bbox.top),
+                                tr.x(bbox.left()),
+                                tr.y(bbox.top()),
+                                tr.scale_x(bbox.right() - bbox.left()),
+                                tr.scale_y(bbox.bottom() - bbox.top()),
                             ];
                             rectangle(color, coords, context.transform, g2d);
                         },

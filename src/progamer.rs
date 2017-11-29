@@ -257,10 +257,10 @@ impl Progamer {
             let bbox = &form.bounding_box().rect;
             debug!("selecting unbound formation {} of {:?}", form_id, action.vehicle_type);
             action.action = Some(ActionType::ClearAndSelect);
-            action.left = bbox.left;
-            action.top = bbox.top;
-            action.right = bbox.right;
-            action.bottom = bbox.bottom;
+            action.left = bbox.left();
+            action.top = bbox.top();
+            action.right = bbox.right();
+            action.bottom = bbox.bottom();
             self.current = Some(form_id);
             self.selection = Some(form_id);
             GosuClick::NothingInteresting

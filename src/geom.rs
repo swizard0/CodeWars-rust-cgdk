@@ -1,19 +1,42 @@
+#[derive(Clone, Copy, PartialEq, Default, Debug)]
+pub struct Point {
+    pub x: f64,
+    pub y: f64,
+}
+
+#[derive(Clone, PartialEq, Default, Debug)]
+pub struct Segment {
+    pub src: Point,
+    pub dst: Point,
+}
+
 #[derive(Clone, PartialEq, Default, Debug)]
 pub struct Rect {
-    pub left: f64,
-    pub top: f64,
-    pub right: f64,
-    pub bottom: f64,
+    pub lt: Point,
+    pub rb: Point,
 }
 
 impl Rect {
+    pub fn left(&self) -> f64 { self.lt.x }
+    pub fn top(&self) -> f64 { self.lt.y }
+    pub fn right(&self) -> f64 { self.rb.x }
+    pub fn bottom(&self) -> f64 { self.rb.y }
+
+    pub fn mid_x(&self) -> f64 {
+        (self.lt.x + self.rb.x) / 2.
+    }
+
+    pub fn mid_y(&self) -> f64 {
+        (self.lt.y + self.rb.y) / 2.
+    }
+
     pub fn inside(&self, x: f64, y: f64) -> bool {
-        x >= self.left && x <= self.right && y >= self.top && y <= self.bottom
+        x >= self.lt.x && x <= self.rb.x && y >= self.lt.y && y <= self.rb.y
     }
 
     pub fn max_side(&self) -> f64 {
-        let w = self.right - self.left;
-        let h = self.bottom - self.top;
+        let w = self.right() - self.left();
+        let h = self.bottom() - self.top();
         w.max(h)
     }
 }
@@ -28,40 +51,35 @@ pub struct Boundary {
 
 impl Boundary {
     pub fn from_iter<I>(iter: I) -> Boundary where I: Iterator<Item = (f64, f64, f64)> {
-        let mut br = Boundary {
-            rect: Rect {
-                left: ::std::f64::MAX,
-                top: ::std::f64::MAX,
-                right: ::std::f64::MIN,
-                bottom: ::std::f64::MIN,
-            },
-            cx: 0.,
-            cy: 0.,
-            density: 0.,
+        let mut rect = Rect {
+            lt: Point { x: ::std::f64::MAX, y: ::std::f64::MAX, },
+            rb: Point { x: ::std::f64::MIN, y: ::std::f64::MIN, },
         };
         let (mut cx_s, mut cy_s, mut area_s, mut total) = (0., 0., 0., 0);
         for (x, y, radius) in iter {
-            br.rect.left = br.rect.left.min(x - radius);
-            br.rect.top = br.rect.top.min(y - radius);
-            br.rect.right = br.rect.right.max(x + radius);
-            br.rect.bottom = br.rect.bottom.max(y + radius);
+            rect.lt.x = rect.left().min(x - radius);
+            rect.lt.y = rect.top().min(y - radius);
+            rect.rb.x = rect.right().max(x + radius);
+            rect.rb.y = rect.bottom().max(y + radius);
             cx_s += x;
             cy_s += y;
             area_s += ::std::f64::consts::PI * radius * radius;
             total += 1;
         }
-        br.cx = cx_s / total as f64;
-        br.cy = cy_s / total as f64;
-        br.density = area_s / ((br.rect.right - br.rect.left) * (br.rect.bottom - br.rect.top));
-        br
+        Boundary {
+            cx: cx_s / total as f64,
+            cy: cy_s / total as f64,
+            density: area_s / ((rect.right() - rect.left()) * (rect.bottom() - rect.top())),
+            rect,
+        }
     }
 
     pub fn sq_radius(&self) -> f64 {
-        let wl = self.cx - self.rect.left;
-        let wr = self.rect.right - self.cx;
+        let wl = self.cx - self.rect.left();
+        let wr = self.rect.right() - self.cx;
         let w = wl.max(wr);
-        let ht = self.cy - self.rect.top;
-        let hb = self.rect.bottom - self.cy;
+        let ht = self.cy - self.rect.top();
+        let hb = self.rect.bottom() - self.cy;
         let h = ht.max(hb);
         (w * w) + (h * h)
     }
@@ -114,19 +132,19 @@ pub fn sq_dist(fx: f64, fy: f64, x: f64, y: f64) -> f64 {
 
 #[cfg(test)]
 mod test {
-    use super::{Rect, Boundary};
+    use super::{Point, Rect, Boundary};
 
     #[test]
     fn sq_radius() {
-        let ra = Boundary { rect: Rect { left: 10., top: 10., right: 14.0, bottom: 13.0, }, cx: 12., cy: 11.5, ..Default::default() };
+        let ra = Boundary { rect: Rect { lt: Point { x: 10., y: 10., }, rb: Point { x: 14.0, y: 13.0, }, }, cx: 12., cy: 11.5, ..Default::default() };
         assert_eq!(ra.sq_radius(), 6.25);
-        let rb = Boundary { rect: Rect { left: 10., top: 10., right: 15.0, bottom: 14.0, }, cx: 11., cy: 13., ..Default::default() };
+        let rb = Boundary { rect: Rect { lt: Point { x: 10., y: 10., }, rb: Point { x: 15.0, y: 14.0, }, }, cx: 11., cy: 13., ..Default::default() };
         assert_eq!(rb.sq_radius(), 25.);
     }
 
     #[test]
     fn sq_dist_to_line() {
-        let ra = Boundary { rect: Rect { left: 10., top: 10., right: 14.0, bottom: 14.0, }, cx: 12., cy: 12., ..Default::default() };
+        let ra = Boundary { rect: Rect { lt: Point { x: 10., y: 10., }, rb: Point { x: 14.0, y: 14.0, }, }, cx: 12., cy: 12., ..Default::default() };
         assert_eq!(ra.sq_dist_to_line(10.0, 10.0, 14.0, 10.0), 4.);
         assert_eq!(ra.sq_dist_to_line(10.0, 16.0, 14.0, 16.0), 16.);
         assert_eq!(ra.sq_dist_to_line(10.0, 10.0, 10.0, 14.0), 4.);
@@ -136,8 +154,8 @@ mod test {
 
     #[test]
     fn predict_collision() {
-        let ra = Boundary { rect: Rect { left: 20., top: 10., right: 25.0, bottom: 14.0, }, cx: 21., cy: 13., ..Default::default() };
-        let rb = Boundary { rect: Rect { left: 0., top: 10., right: 5.0, bottom: 14.0, }, cx: 1., cy: 13., ..Default::default() };
+        let ra = Boundary { rect: Rect { lt: Point { x: 20., y: 10., }, rb: Point { x: 25.0, y: 14.0, }, }, cx: 21., cy: 13., ..Default::default() };
+        let rb = Boundary { rect: Rect { lt: Point { x: 0., y: 10., }, rb: Point { x: 5.0, y: 14.0, }, }, cx: 1., cy: 13., ..Default::default() };
         assert_eq!(ra.sq_radius(), 25.0);
         assert_eq!(rb.sq_radius(), 25.0);
         assert_eq!(rb.predict_collision(20., 10., &ra), true);
@@ -149,8 +167,8 @@ mod test {
 
     #[test]
     fn correct_trajectory() {
-        let ra = Boundary { rect: Rect { left: 20., top: 10., right: 25.0, bottom: 14.0, }, cx: 21., cy: 13., ..Default::default() };
-        let rb = Boundary { rect: Rect { left: 0., top: 10., right: 5.0, bottom: 14.0, }, cx: 1., cy: 13., ..Default::default() };
+        let ra = Boundary { rect: Rect { lt: Point { x: 20., y: 10., }, rb: Point { x: 25.0, y: 14.0, }, }, cx: 21., cy: 13., ..Default::default() };
+        let rb = Boundary { rect: Rect { lt: Point { x: 0., y: 10., }, rb: Point { x: 5.0, y: 14.0, }, }, cx: 1., cy: 13., ..Default::default() };
         let (target_x, target_y) = rb.correct_trajectory(&ra);
         assert_eq!(target_x, 11.);
         assert_eq!(target_y, 13.);
@@ -161,10 +179,8 @@ mod test {
     fn correct_trajectory_a() {
         let me = Boundary {
             rect: Rect {
-                left: 29.,
-                top: 81.97561338236046,
-                right: 57.,
-                bottom: 139.97561338236045,
+                lt: Point { x: 29., y: 81.97561338236046, },
+                rb: Point { x: 57., y: 139.97561338236045, },
             },
             cx: 43.,
             cy: 110.97561338236036,
@@ -172,10 +188,8 @@ mod test {
         };
         let obstacle = Boundary {
             rect: Rect {
-                left: 59.,
-                top: 81.97561338236046,
-                right: 87.,
-                bottom: 139.97561338236045,
+                lt: Point { x: 59., y: 81.97561338236046, },
+                rb: Point { x: 87., y: 139.97561338236045, },
             },
             cx: 73.,
             cy: 110.97561338236035,
@@ -190,10 +204,8 @@ mod test {
     fn correct_trajectory_b() {
         let me = Boundary {
             rect: Rect {
-                left: 164.,
-                top: 164.,
-                right: 222.,
-                bottom: 222.,
+                lt: Point { x: 164., y: 164., },
+                rb: Point { x: 222., y: 222., },
             },
             cx: 193.,
             cy: 193.,
@@ -201,10 +213,8 @@ mod test {
         };
         let obstacle = Boundary {
             rect: Rect {
-                left: 164.,
-                top: 90.,
-                right: 222.,
-                bottom: 148.,
+                lt: Point { x: 164., y: 90., },
+                rb: Point { x: 222., y: 148., },
             },
             cx: 193.,
             cy: 119.,

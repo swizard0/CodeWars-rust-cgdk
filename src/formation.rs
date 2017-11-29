@@ -3,7 +3,7 @@ use std::collections::hash_map::Entry;
 use super::rand::Rng;
 use model::{Vehicle, VehicleUpdate, VehicleType};
 use super::derivatives::Derivatives;
-use super::geom::{Rect, Boundary};
+use super::geom::{Point, Rect, Boundary};
 use super::tactic::Plan;
 use super::side::Side;
 
@@ -303,33 +303,25 @@ impl Formation {
         ((FormationId, Formation), (FormationId, Formation))
     {
         let bbox = self.bounding_box(by_vehicle_id).rect.clone();
-        let width = bbox.right - bbox.left;
-        let height = bbox.bottom - bbox.top;
+        let width = bbox.right() - bbox.left();
+        let height = bbox.bottom() - bbox.top();
         let (rect_a, rect_b) = if width >= height {
             (Rect {
-                left: bbox.left,
-                top: bbox.top,
-                right: (bbox.left + bbox.right) / 2.,
-                bottom: bbox.bottom,
+                lt: bbox.lt,
+                rb: Point { x: bbox.mid_x(), y: bbox.bottom(), },
             },
              Rect {
-                 left: (bbox.left + bbox.right) / 2.,
-                 top: bbox.top,
-                 right: bbox.right,
-                 bottom: bbox.bottom,
+                 lt: Point { x: bbox.mid_x(), y: bbox.top(), },
+                 rb: bbox.rb,
              })
         } else {
             (Rect {
-                left: bbox.left,
-                top: bbox.top,
-                right: bbox.right,
-                bottom: (bbox.top + bbox.bottom) / 2.,
+                lt: bbox.lt,
+                rb: Point { x: bbox.right(), y: bbox.mid_y(), },
             },
              Rect {
-                 left: bbox.left,
-                 top: (bbox.top + bbox.bottom) / 2.,
-                 right: bbox.right,
-                 bottom: bbox.bottom,
+                 lt: Point { x: bbox.left(), y: bbox.mid_y(), },
+                 rb: bbox.rb,
              })
         };
 
