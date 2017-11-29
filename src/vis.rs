@@ -2,7 +2,7 @@ use std::{path, thread};
 use std::sync::mpsc;
 use model::{Game, Action, Player, World, Vehicle, VehicleType};
 use super::my_strategy::side::Side;
-use super::my_strategy::rect::Rect;
+use super::my_strategy::geom::Rect;
 use super::my_strategy::formation::Formations;
 
 const CONSOLE_HEIGHT: u32 = 32;

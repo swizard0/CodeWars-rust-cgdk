@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use model::{VehicleType, Game};
 use super::formation::{FormationId, Formations};
-use super::common::{sq_dist, combat_info};
+use super::common::combat_info;
+use super::geom::sq_dist;
 use super::consts;
 
 #[derive(Clone, Debug)]

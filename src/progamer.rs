@@ -2,8 +2,8 @@ use std::collections::HashSet;
 use model::{ActionType, Action, Player, Game, VehicleType};
 use super::tactic::{Plan, Desire, Tactic};
 use super::formation::{Formations, FormationId};
-use super::common::{sq_dist, collides};
-use super::rect::Rect;
+use super::common::collides;
+use super::geom::{sq_dist, Rect};
 
 pub struct Progamer {
     current: Option<FormationId>,

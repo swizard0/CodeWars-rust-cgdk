@@ -1,9 +1,5 @@
 use model::{VehicleType, Game};
 
-pub fn sq_dist(fx: f64, fy: f64, x: f64, y: f64) -> f64 {
-    ((x - fx) * (x - fx)) + ((y - fy) * (y - fy))
-}
-
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum VehicleForm {
     Aircraft,

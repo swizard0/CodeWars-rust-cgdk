@@ -4,7 +4,7 @@ use super::rand::Rng;
 use model::{Vehicle, VehicleUpdate, VehicleType};
 use super::derivatives::Derivatives;
 use super::tactic::Plan;
-use super::rect::Rect;
+use super::geom::Rect;
 use super::side::Side;
 
 pub type FormationId = i32;

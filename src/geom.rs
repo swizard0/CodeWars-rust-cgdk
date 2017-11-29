@@ -1,5 +1,3 @@
-use super::common::sq_dist;
-
 #[derive(Clone, PartialEq, Default, Debug)]
 pub struct Rect {
     pub left: f64,
@@ -99,6 +97,10 @@ impl Rect {
         let sq_r_m = sq_r_s.max(sq_r_o);
         sq_r_s + sq_r_o + (2. * sq_r_m)
     }
+}
+
+pub fn sq_dist(fx: f64, fy: f64, x: f64, y: f64) -> f64 {
+    ((x - fx) * (x - fx)) + ((y - fy) * (y - fy))
 }
 
 #[cfg(test)]

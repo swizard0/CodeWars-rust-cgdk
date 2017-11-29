@@ -4,7 +4,8 @@ use super::consts;
 use super::formation::{FormationId, FormationRef};
 use super::tactic::{Tactic, Plan, Desire};
 use super::atsral::{Atsral, AtsralForecast, Cry, FoeFormation};
-use super::common::{sq_dist, combat_info, VehicleForm};
+use super::common::{combat_info, VehicleForm};
+use super::geom::sq_dist;
 
 enum AtsralProclaims {
     Tranquillity,
