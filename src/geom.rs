@@ -12,10 +12,33 @@ pub struct Point {
     pub y: AxisY,
 }
 
+impl Point {
+    pub fn sq_dist(&self, other: &Point) -> f64 {
+        sq_dist(self.x, self.y, other.x, other.y)
+    }
+
+    pub fn cross(&self, other: &Point) -> f64 {
+        (self.x.x * other.y.y) - (self.y.y * other.x.x)
+    }
+
+    pub fn dot(&self, other: &Point) -> f64 {
+        (self.x * other.x).x + (self.y * other.y).y
+    }
+}
+
 #[derive(Clone, PartialEq, Default, Debug)]
 pub struct Segment {
     pub src: Point,
     pub dst: Point,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Its {
+    ColinearOverlapping(Point),
+    ColinearDisjoint,
+    ParallelNonIntersecting,
+    Intersection(Point),
+    NoIntersection,
 }
 
 impl Segment {
@@ -28,6 +51,48 @@ impl Segment {
 
     pub fn sq_dist(&self) -> f64 {
         sq_dist(self.src.x, self.src.y, self.dst.x, self.dst.y)
+    }
+
+    pub fn intersects(&self, other: &Segment) -> Its {
+        let p = self.src;
+        let r = Point { x: self.dst.x - self.src.x, y: self.dst.y - self.src.y, };
+        let q = other.src;
+        let s = Point { x: other.dst.x - other.src.x, y: other.dst.y - other.src.y, };
+
+        // r × s
+        let r_s = r.cross(&s);
+        // (q − p) × r
+        let q_p = Point { x: q.x - p.x, y: q.y - p.y, };
+        let q_p_r = q_p.cross(&r);
+
+        if zero_epsilon(r_s) && zero_epsilon(q_p_r) {
+            let rr = r.dot(&r);
+            // t0 = (q − p) · r / (r · r)
+            let t0 = q_p.dot(&r) / rr;
+            // t1 = (q + s − p) · r / (r · r) = t0 + s · r / (r · r)
+            let t1 = t0 + s.dot(&r) / rr;
+
+            if t0 >= 0. && t0 <= 1. {
+                Its::ColinearOverlapping(Point { x: p.x + (r.x * t0), y: p.y + (r.y * t0), })
+            } else if t1 >= 0. && t1 <= 1. {
+                Its::ColinearOverlapping(Point { x: p.x + (r.x * t1), y: p.y + (r.y * t1), })
+            } else {
+                Its::ColinearDisjoint
+            }
+        } else if zero_epsilon(r_s) && !zero_epsilon(q_p_r) {
+            Its::ParallelNonIntersecting
+        } else {
+            // t = (q − p) × s / (r × s)
+            let t = q_p.cross(&s) / r_s;
+            // u = (q − p) × r / (r × s)
+            let u = q_p.cross(&r) / r_s;
+
+            if !zero_epsilon(r_s) && (t >= 0.) && (t <= 1.) && (u >= 0.) && (u <= 1.) {
+                Its::Intersection(Point { x: p.x + (r.x * t), y: p.y + (r.y * t), })
+            } else {
+                Its::NoIntersection
+            }
+        }
     }
 }
 
@@ -156,6 +221,10 @@ impl Boundary {
 
 pub fn sq_dist(fx: AxisX, fy: AxisY, x: AxisX, y: AxisY) -> f64 {
     ((x - fx) * (x - fx)).x + ((y - fy) * (y - fy)).y
+}
+
+pub fn zero_epsilon(v: f64) -> bool {
+    v.abs() < ::std::f64::EPSILON
 }
 
 use std::ops::{Add, Sub, Mul};
@@ -395,5 +464,70 @@ mod test {
         assert_eq!(me.predict_collision(&Point { x: axis_x(207.04910379187322), y: axis_y(144.59873458304605), }, &obstacle), true);
         let target = me.correct_trajectory(&obstacle);
         assert_eq!(me.predict_collision(&target, &obstacle), false);
+    }
+
+    use super::Its;
+
+    fn seg(xa: f64, ya: f64, xb: f64, yb: f64) -> Segment {
+        Segment {
+            src: Point { x: axis_x(xa), y: axis_y(ya), },
+            dst: Point { x: axis_x(xb), y: axis_y(yb), },
+        }
+    }
+
+    #[test]
+    fn seg_its_no_intersection() {
+        let a = seg(10., 10., 20., 20.);
+        let b = seg(15., 5., 10., 5.);
+        assert_eq!(a.intersects(&b), Its::NoIntersection);
+    }
+
+    #[test]
+    fn seg_its_parallel_non_intersecting() {
+        let a = seg(10., 10., 20., 20.);
+        let b = seg(15., 10., 10., 5.);
+        assert_eq!(a.intersects(&b), Its::ParallelNonIntersecting);
+    }
+
+    #[test]
+    fn seg_its_colinear_overlapping() {
+        let a = seg(8., 4., 0., 0.);
+        let b = seg(14., 7., 6., 3.);
+        assert_eq!(a.intersects(&b), Its::ColinearOverlapping(Point { x: axis_x(6.), y: axis_y(3.), }));
+        let a = seg(0., 0., 8., 4.);
+        let b = seg(14., 7., 6., 3.);
+        assert_eq!(a.intersects(&b), Its::ColinearOverlapping(Point { x: axis_x(6.), y: axis_y(3.), }));
+        let a = seg(0., 0., 8., 4.);
+        let b = seg(6., 3., 14., 7.);
+        assert_eq!(a.intersects(&b), Its::ColinearOverlapping(Point { x: axis_x(6.), y: axis_y(3.), }));
+        let a = seg(8., 4., 0., 0.);
+        let b = seg(6., 3., 14., 7.);
+        assert_eq!(a.intersects(&b), Its::ColinearOverlapping(Point { x: axis_x(6.), y: axis_y(3.), }));
+    }
+
+    #[test]
+    fn seg_its_colinear_disjoint() {
+        let a = seg(0., 0., 8., 4.);
+        let b = seg(12., 6., 20., 10.);
+        assert_eq!(a.intersects(&b), Its::ColinearDisjoint);
+    }
+
+    #[test]
+    fn seg_its_intersection() {
+        let a = seg(0., 0., 8., 4.);
+        let b = seg(8., 0., 0., 4.);
+        assert_eq!(a.intersects(&b), Its::Intersection(Point { x: axis_x(4.), y: axis_y(2.), }));
+        let a = seg(0., 0., 8., 4.);
+        let b = seg(10., 1., 2., 5.);
+        assert_eq!(a.intersects(&b), Its::Intersection(Point { x: axis_x(6.), y: axis_y(3.), }));
+        let a = seg(8., 4., 0., 0.);
+        let b = seg(10., 1., 2., 5.);
+        assert_eq!(a.intersects(&b), Its::Intersection(Point { x: axis_x(6.), y: axis_y(3.), }));
+        let a = seg(8., 4., 0., 0.);
+        let b = seg(2., 5., 10., 1.);
+        assert_eq!(a.intersects(&b), Its::Intersection(Point { x: axis_x(6.), y: axis_y(3.), }));
+        let a = seg(0., 0., 8., 4.);
+        let b = seg(2., 5., 10., 1.);
+        assert_eq!(a.intersects(&b), Its::Intersection(Point { x: axis_x(6.), y: axis_y(3.), }));
     }
 }
