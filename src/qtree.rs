@@ -1,20 +1,9 @@
 use super::geom::{Point, Rect};
 
-pub trait FitsChecker<T> {
-    fn fits_into(&mut self, rect: &Rect, item: &T) -> bool;
-}
-
-impl<F, T> FitsChecker<T> for F where F: FnMut(&Rect, &T) -> bool {
-    fn fits_into(&mut self, rect: &Rect, item: &T) -> bool {
-        (self)(rect, item)
-    }
-}
-
 #[derive(Clone, Debug)]
-pub struct QuadTree<T, F> {
+pub struct QuadTree<T> {
     rect: Rect,
     root: Node<T>,
-    fits_checker: F,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -29,20 +18,31 @@ struct Node<T> {
     items: Vec<T>,
 }
 
-impl<T, F> QuadTree<T, F> {
-    pub fn new(area: Rect, fits_checker: F) -> QuadTree<T, F> {
+impl<T> QuadTree<T> {
+    pub fn new(area: Rect) -> QuadTree<T> {
         QuadTree {
             root: Node::new(&area),
             rect: area,
-            fits_checker,
+        }
+    }
+
+    pub fn insert(&mut self, bbox: &Rect, item: T) {
+        self.root.insert(bbox, item)
+    }
+
+    pub fn lookup<'a>(&'a self, area: Rect) -> LookupIter<'a, T> {
+        LookupIter {
+            area,
+            node: &self.root,
+            iter: None,
         }
     }
 }
 
-impl<T, F> QuadTree<T, F> where F: FitsChecker<T> {
-    pub fn insert(&mut self, item: T) {
-        self.root.insert(item, &mut self.fits_checker)
-    }
+pub struct LookupIter<'a, T: 'a> {
+    area: Rect,
+    node: &'a Node<T>,
+    iter: Option<::std::slice::Iter<'a, T>>,
 }
 
 impl<T> Node<T> {
@@ -72,11 +72,11 @@ impl<T> Node<T> {
         }
     }
 
-    fn insert<F>(&mut self, item: T, fits_checker: &mut F) where F: FitsChecker<T> {
+    fn insert(&mut self, bbox: &Rect, item: T) {
         for &mut QuarterRect { ref rect, ref mut node, } in self.children.iter_mut() {
-            if fits_checker.fits_into(rect, &item) {
+            if rect.contains(bbox) {
                 let child = node.get_or_insert_with(|| Box::new(Node::new(rect)));
-                return child.insert(item, fits_checker);
+                return child.insert(bbox, item);
             }
         }
         self.items.push(item);
@@ -94,7 +94,7 @@ mod test {
 
     #[test]
     fn make_new() {
-        let tree: QuadTree<(), _> = QuadTree::new(rt(0., 0., 100., 100.), ());
+        let tree: QuadTree<()> = QuadTree::new(rt(0., 0., 100., 100.));
         assert_eq!(tree.rect, rt(0., 0., 100., 100.));
         assert_eq!(tree.root.children[0], QuarterRect { rect: rt(0., 0., 50., 50.), node: None, });
         assert_eq!(tree.root.children[1], QuarterRect { rect: rt(50., 0., 100., 50.), node: None, });
@@ -104,15 +104,20 @@ mod test {
 
     #[test]
     fn insert() {
-        let mut tree = QuadTree::new(
-            rt(0., 0., 100., 100.),
-            |rect: &Rect, &Rect { ref lt, ref rb }: &Rect| rect.inside(lt) && rect.inside(rb),
-        );
-        tree.insert(rt(90., 90., 110., 110.));
+        let mut tree = QuadTree::new(rt(0., 0., 100., 100.));
+        let rect = rt(90., 90., 110., 110.);
+        tree.insert(&rect, rect.clone());
         assert_eq!(tree.root.items, vec![rt(90., 90., 110., 110.)]);
-        tree.insert(rt(70., 70., 80., 80.));
-        assert_eq!(tree.root.children.get(2).and_then(|qr| qr.node.as_ref()).map(|n| &n.items[..]), Some([rt(70., 70., 80., 80.)].as_ref()));
-        tree.insert(rt(85., 60., 95., 70.));
+        let rect = rt(70., 70., 80., 80.);
+        tree.insert(&rect, rect.clone());
+        assert_eq!(
+            tree.root.children.get(2)
+                .and_then(|qr| qr.node.as_ref())
+                .map(|n| &n.items[..]),
+            Some([rt(70., 70., 80., 80.)].as_ref())
+        );
+        let rect = rt(85., 60., 95., 70.);
+        tree.insert(&rect, rect.clone());
         assert_eq!(
             tree.root.children.get(2)
                 .and_then(|qr| qr.node.as_ref())
@@ -120,6 +125,14 @@ mod test {
                 .and_then(|qr| qr.node.as_ref())
                 .map(|n| &n.items[..]),
             Some([rt(85., 60., 95., 70.)].as_ref())
+        );
+        let rect = rt(60., 74., 90., 76.);
+        tree.insert(&rect, rect.clone());
+        assert_eq!(
+            tree.root.children.get(2)
+                .and_then(|qr| qr.node.as_ref())
+                .map(|n| &n.items[..]),
+            Some([rt(70., 70., 80., 80.), rt(60., 74., 90., 76.)].as_ref())
         );
     }
 }

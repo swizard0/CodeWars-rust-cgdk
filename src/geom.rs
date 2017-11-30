@@ -55,6 +55,10 @@ impl Rect {
         p.x >= self.lt.x && p.x <= self.rb.x && p.y >= self.lt.y && p.y <= self.rb.y
     }
 
+    pub fn contains(&self, other: &Rect) -> bool {
+        self.inside(&other.lt) && self.inside(&other.rb)
+    }
+
     pub fn max_side(&self) -> f64 {
         let w = (self.right() - self.left()).x;
         let h = (self.bottom() - self.top()).y;
