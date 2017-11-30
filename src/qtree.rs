@@ -30,19 +30,11 @@ impl<T> QuadTree<T> {
         self.root.insert(bbox, item)
     }
 
-    pub fn lookup<'a>(&'a self, area: Rect) -> LookupIter<'a, T> {
-        LookupIter {
-            area,
-            node: &self.root,
-            iter: None,
-        }
+    pub fn lookup<'q, 'a>(&'a self, area: Rect, queue: &'q mut Vec<QuarterRectRef<'a, T>>) -> LookupIter<'q, 'a, T> {
+        queue.clear();
+        queue.push(QuarterRectRef { rect: &self.rect, node: &self.root, });
+        LookupIter { area, queue, items_it: None, }
     }
-}
-
-pub struct LookupIter<'a, T: 'a> {
-    area: Rect,
-    node: &'a Node<T>,
-    iter: Option<::std::slice::Iter<'a, T>>,
 }
 
 impl<T> Node<T> {
@@ -83,6 +75,45 @@ impl<T> Node<T> {
     }
 }
 
+pub struct QuarterRectRef<'a, T: 'a> {
+    rect: &'a Rect,
+    node: &'a Node<T>,
+}
+
+pub struct LookupIter<'q, 'a: 'q, T: 'a> {
+    area: Rect,
+    queue: &'q mut Vec<QuarterRectRef<'a, T>>,
+    items_it: Option<::std::slice::Iter<'a, T>>,
+}
+
+impl<'q, 'a, T> Iterator for LookupIter<'q, 'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        'outer: loop {
+            if let Some(ref mut iter) = self.items_it {
+                if let Some(item) = iter.next() {
+                    return Some(item);
+                }
+            }
+            self.items_it = None;
+            while let Some(QuarterRectRef { rect, node, }) = self.queue.pop() {
+                if !rect.intersects(&self.area) {
+                    continue;
+                }
+                for qr in node.children.iter() {
+                    if let Some(ref node) = qr.node {
+                        self.queue.push(QuarterRectRef { rect: &qr.rect, node, });
+                    }
+                }
+                self.items_it = Some(node.items.iter());
+                continue 'outer;
+            }
+            return None;
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::super::geom::{axis_x, axis_y, Point, Rect};
@@ -105,34 +136,58 @@ mod test {
     #[test]
     fn insert() {
         let mut tree = QuadTree::new(rt(0., 0., 100., 100.));
-        let rect = rt(90., 90., 110., 110.);
-        tree.insert(&rect, rect.clone());
-        assert_eq!(tree.root.items, vec![rt(90., 90., 110., 110.)]);
-        let rect = rt(70., 70., 80., 80.);
-        tree.insert(&rect, rect.clone());
+        tree.insert(&rt(40., 40., 60., 60.), "center");
+        assert_eq!(tree.root.items, vec!["center"]);
+        tree.insert(&rt(70., 70., 80., 80.), "south-east A");
         assert_eq!(
             tree.root.children.get(2)
                 .and_then(|qr| qr.node.as_ref())
                 .map(|n| &n.items[..]),
-            Some([rt(70., 70., 80., 80.)].as_ref())
+            Some(["south-east A"].as_ref())
         );
-        let rect = rt(85., 60., 95., 70.);
-        tree.insert(&rect, rect.clone());
+        tree.insert(&rt(85., 60., 95., 70.), "south-east, north-east");
         assert_eq!(
             tree.root.children.get(2)
                 .and_then(|qr| qr.node.as_ref())
                 .and_then(|n| n.children.get(1))
                 .and_then(|qr| qr.node.as_ref())
                 .map(|n| &n.items[..]),
-            Some([rt(85., 60., 95., 70.)].as_ref())
+            Some(["south-east, north-east"].as_ref())
         );
-        let rect = rt(60., 74., 90., 76.);
-        tree.insert(&rect, rect.clone());
+        tree.insert(&rt(60., 74., 90., 76.), "south-east B");
         assert_eq!(
             tree.root.children.get(2)
                 .and_then(|qr| qr.node.as_ref())
                 .map(|n| &n.items[..]),
-            Some([rt(70., 70., 80., 80.), rt(60., 74., 90., 76.)].as_ref())
+            Some(["south-east A", "south-east B"].as_ref())
+        );
+    }
+
+    #[test]
+    fn lookup() {
+        let mut tree = QuadTree::new(rt(0., 0., 100., 100.));
+        tree.insert(&rt(40., 40., 60., 60.), "center");
+        tree.insert(&rt(70., 70., 80., 80.), "south-east A");
+        tree.insert(&rt(85., 60., 95., 70.), "south-east, north-east");
+        tree.insert(&rt(60., 74., 90., 76.), "south-east B");
+        tree.insert(&rt(1., 1., 4., 4.), "north-west");
+
+        let mut queue = Vec::new();
+        assert_eq!(
+            tree.lookup(rt(10., 10., 90., 90.), &mut queue).collect::<Vec<_>>(),
+            vec![&"center", &"south-east A", &"south-east B", &"south-east, north-east"]
+        );
+        assert_eq!(
+            tree.lookup(rt(10., 10., 20., 20.), &mut queue).collect::<Vec<_>>(),
+            vec![&"center"]
+        );
+        assert_eq!(
+            tree.lookup(rt(59., 69., 74., 81.), &mut queue).collect::<Vec<_>>(),
+            vec![&"center", &"south-east A", &"south-east B"]
+        );
+        assert_eq!(
+            tree.lookup(rt(2., 2., 3., 3.), &mut queue).collect::<Vec<_>>(),
+            vec![&"center", &"north-west"]
         );
     }
 }

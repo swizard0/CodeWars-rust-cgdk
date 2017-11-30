@@ -59,6 +59,14 @@ impl Rect {
         self.inside(&other.lt) && self.inside(&other.rb)
     }
 
+    pub fn intersects(&self, other: &Rect) -> bool {
+        if self.rb.x < other.lt.x || other.rb.x < self.lt.x || self.rb.y < other.lt.y || other.rb.y < self.lt.y {
+            false
+        } else {
+            true
+        }
+    }
+
     pub fn max_side(&self) -> f64 {
         let w = (self.right() - self.left()).x;
         let h = (self.bottom() - self.top()).y;
