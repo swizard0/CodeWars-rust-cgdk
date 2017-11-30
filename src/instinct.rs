@@ -5,7 +5,7 @@ use super::formation::{FormationId, FormationRef};
 use super::tactic::{Tactic, Plan, Desire};
 use super::atsral::{Atsral, AtsralForecast, Cry, FoeFormation};
 use super::common::{combat_info, VehicleForm};
-use super::geom::{sq_dist, axis_x, axis_y, Point, Rect};
+use super::geom::{sq_dist, axis_x, axis_y, Point, Segment, Rect};
 
 enum AtsralProclaims {
     Tranquillity,
@@ -116,7 +116,7 @@ pub fn run<R>(mut form: FormationRef, atsral_fc: &mut AtsralForecast, tactic: &m
                 },
                 AtsralProclaims::EscapeCorrect { fm, foe_fm, } => {
                     tactic.cancel(form.id);
-                    run_away(Some((foe_fm, fm)), true, form, config.world, tactic, rng);
+                    run_away(Some(Segment { src: foe_fm, dst: fm, }), true, form, config.world, tactic, rng);
                 },
             },
     }
@@ -275,7 +275,7 @@ pub fn basic_insticts<'a, R>(
         GoCurious,
         Scatter,
         ScatterOrScout,
-        RunAway(Option<(Point, Point)>),
+        RunAway(Option<Segment>),
         YellForHelp { fm: Point, escape: Point, },
         YellForDoctor { fm: Point, },
         YellForHunt { fm: Point, },
@@ -327,22 +327,22 @@ pub fn basic_insticts<'a, R>(
             Reaction::RunAway(None),
         // we are under attack while scouting: run away
         (&mut Some(Plan { desire: Desire::ScoutTo { fm, goal, .. }, ..}), Trigger::Hurts) =>
-            Reaction::RunAway(Some((goal, fm))),
+            Reaction::RunAway(Some(Segment { src: goal, dst: fm, })),
         // we are under attack while attacking: run away
         (&mut Some(Plan { desire: Desire::Attack { fm, goal, .. }, ..}), Trigger::Hurts) =>
-            Reaction::RunAway(Some((goal, fm))),
+            Reaction::RunAway(Some(Segment { src: goal, dst: fm, })),
         // we are under attack while running away: keep on escaping
         (&mut Some(Plan { desire: Desire::Escape { fm, goal: escape, .. }, .. }), Trigger::Hurts) =>
             Reaction::YellForHelp { fm, escape, },
         // we are under attack while hunting: run away
         (&mut Some(Plan { desire: Desire::Hunt { fm, goal, .. }, .. }), Trigger::Hurts) =>
-            Reaction::RunAway(Some((goal, fm))),
+            Reaction::RunAway(Some(Segment { src: goal, dst: fm, })),
         // we are under attack while moving towards doctor: run away
         (&mut Some(Plan { desire: Desire::HurryToDoctor { fm, goal, .. }, .. }), Trigger::Hurts) =>
-            Reaction::RunAway(Some((goal, fm))),
+            Reaction::RunAway(Some(Segment { src: goal, dst: fm, })),
         // we are under attack while nuking: run away anyways
         (&mut Some(Plan { desire: Desire::Nuke { fm, strike, .. }, ..}), Trigger::Hurts) =>
-            Reaction::RunAway(Some((strike, fm))),
+            Reaction::RunAway(Some(Segment { src: strike, dst: fm, })),
         // we are currently scattering while being attacked: escape in random direction
         (&mut Some(Plan { desire: Desire::FormationSplit { .. }, .. }), Trigger::Hurts) =>
             Reaction::RunAway(None),
@@ -485,7 +485,7 @@ fn scatter<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic
 }
 
 fn run_away<'a, R>(
-    escape_vec: Option<(Point, Point)>,
+    escape_vec: Option<Segment>,
     corrected: bool,
     mut form: FormationRef<'a>,
     world: &World,
@@ -504,7 +504,7 @@ fn run_away<'a, R>(
 
     // try to detect right escape direction
     let goal = escape_vec
-        .and_then(|(src, dst)| {
+        .and_then(|Segment { src, dst, }| {
             let p = Point {
                 x: fm.x + (dst.x - src.x) * consts::ESCAPE_BOUNCE_FACTOR,
                 y: fm.y + (dst.y - src.y) * consts::ESCAPE_BOUNCE_FACTOR,
