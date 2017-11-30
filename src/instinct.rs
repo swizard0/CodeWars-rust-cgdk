@@ -5,25 +5,23 @@ use super::formation::{FormationId, FormationRef};
 use super::tactic::{Tactic, Plan, Desire};
 use super::atsral::{Atsral, AtsralForecast, Cry, FoeFormation};
 use super::common::{combat_info, VehicleForm};
-use super::geom::{sq_dist, axis_x, axis_y, Point, AxisX, AxisY};
+use super::geom::{sq_dist, axis_x, axis_y, Point, Rect};
 
 enum AtsralProclaims {
     Tranquillity,
     ReadyToHelp {
         form_id: FormationId,
-        distress_fx: AxisX,
-        distress_fy: AxisY,
-        escape_x: AxisX,
-        escape_y: AxisY,
+        distress: Point,
+        escape: Point,
         foe: Option<FoeFormation>
     },
-    ProtectorIsChoosen { form_id: FormationId, fx: AxisX, fy: AxisY, },
-    GoPunish { distress_fx: AxisX, distress_fy: AxisY, },
-    GoHunt { fx: AxisX, fy: AxisY, damage: i32, foe: Option<FoeFormation>, },
-    NukeThem { fx: AxisX, fy: AxisY, foe_fx: AxisX, foe_fy: AxisY, },
-    ReadyToHeal { form_id: FormationId, ill_fx: AxisX, ill_fy: AxisY, },
-    DoctorIsChoosen { healer_fx: AxisX, healer_fy: AxisY, sq_dist: f64, },
-    EscapeCorrect { fx: AxisX, fy: AxisY, foe_fx: AxisX, foe_fy: AxisY, },
+    ProtectorIsChoosen { form_id: FormationId, fm: Point, },
+    GoPunish { distress: Point, },
+    GoHunt { fm: Point, damage: i32, foe: Option<FoeFormation>, },
+    NukeThem { fm: Point, foe_fm: Point, },
+    ReadyToHeal { form_id: FormationId, ill: Point, },
+    DoctorIsChoosen { healer: Point, sq_dist: f64, },
+    EscapeCorrect { fm: Point, foe_fm: Point, },
 }
 
 pub struct Config<'a> {
@@ -41,80 +39,70 @@ pub fn run<R>(mut form: FormationRef, atsral_fc: &mut AtsralForecast, tactic: &m
             match listen_to_atsral(&mut form, config.game, config.me, atsral) {
                 AtsralProclaims::Tranquillity =>
                     (),
-                AtsralProclaims::ReadyToHelp { form_id, distress_fx, distress_fy, escape_x, escape_y, foe, } => {
-                    let (fx, fy) = {
-                        let bbox = form.bounding_box();
-                        (bbox.cx, bbox.cy)
-                    };
+                AtsralProclaims::ReadyToHelp { form_id, distress, escape, foe, } => {
+                    let fm = form.bounding_box().mass;
                     atsral.cry(Cry::ReadyToHelp {
                         recipient: form_id,
                         helper_form_id: form.id,
                         helper_kind: form.kind().clone(),
-                        helper_fx: fx,
-                        helper_fy: fy,
-                        distress_fx,
-                        distress_fy,
-                        escape_x,
-                        escape_y,
+                        helper: fm,
+                        distress,
+                        escape,
                         foe,
                     });
                 },
-                AtsralProclaims::ProtectorIsChoosen { form_id, fx, fy, } =>
-                    atsral.cry(Cry::ComePunishThem { recipient: form_id, distress_fx: fx, distress_fy: fy, }),
-                AtsralProclaims::GoPunish { distress_fx: x, distress_fy: y, } => {
-                    let (fx, fy) = {
-                        let bbox = form.bounding_box();
-                        (bbox.cx, bbox.cy)
-                    };
+                AtsralProclaims::ProtectorIsChoosen { form_id, fm, } =>
+                    atsral.cry(Cry::ComePunishThem { recipient: form_id, distress: fm, }),
+                AtsralProclaims::GoPunish { distress, } => {
+                    let fm = form.bounding_box().mass;
                     tactic.plan(rng, Plan {
                         form_id: form.id,
                         tick: config.world.tick_index,
                         desire: Desire::Attack {
-                            fx, fy, x, y,
-                            sq_dist: sq_dist(fx, fy, x, y),
+                            fm, goal: distress,
+                            sq_dist: sq_dist(fm.x, fm.y, distress.x, distress.y),
                         },
                     });
                 },
-                AtsralProclaims::GoHunt { fx, fy, damage, foe, } => {
+                AtsralProclaims::GoHunt { fm, damage, foe, } => {
                     if let Some(ff) = foe {
                         tactic.plan(rng, Plan {
                             form_id: form.id,
                             tick: config.world.tick_index,
                             desire: Desire::Hunt {
-                                fx, fy, x: ff.fx, y: ff.fy, damage, foe: Some(ff.kind),
+                                fm, damage,
+                                goal: ff.fm,
+                                foe: Some(ff.kind),
                             },
                         });
                     }
                 },
-                AtsralProclaims::NukeThem { fx, fy, foe_fx, foe_fy, } => {
-                    let strike_x = fx + (foe_fx - fx) * consts::NUKE_ENEMY_CLOSENESS;
-                    let strike_y = fy + (foe_fy - fy) * consts::NUKE_ENEMY_CLOSENESS;
+                AtsralProclaims::NukeThem { fm, foe_fm, } => {
+                    let strike = Point {
+                        x: fm.x + (foe_fm.x - fm.x) * consts::NUKE_ENEMY_CLOSENESS,
+                        y: fm.y + (foe_fm.y - fm.y) * consts::NUKE_ENEMY_CLOSENESS,
+                    };
                     let vehicle_id = form.random_vehicle_id(rng);
                     tactic.plan(rng, Plan {
                         form_id: form.id,
                         tick: config.world.tick_index,
-                        desire: Desire::Nuke { vehicle_id, fx, fy, strike_x, strike_y, },
+                        desire: Desire::Nuke { vehicle_id, fm, strike, },
                     });
                 },
-                AtsralProclaims::ReadyToHeal { form_id, ill_fx, ill_fy, } => {
-                    let (fx, fy) = {
-                        let bbox = form.bounding_box();
-                        (bbox.cx, bbox.cy)
-                    };
+                AtsralProclaims::ReadyToHeal { form_id, ill, } => {
+                    let fm = form.bounding_box().mass;
                     atsral.cry(Cry::ReadyToHeal {
                         recipient: form_id,
                         healer_form_id: form.id,
-                        healer_fx: fx,
-                        healer_fy: fy,
-                        ill_fx,
-                        ill_fy,
+                        healer: fm,
+                        ill,
                     });
                 },
-                AtsralProclaims::DoctorIsChoosen { healer_fx, healer_fy, sq_dist, } => {
-                    debug!("doctor is choosen for {} of {:?} w/{:?}: heading for ({}, {})", form.id, form.kind(), form.health(), healer_fx, healer_fy);
-                    let (fx, fy, in_touch) = {
+                AtsralProclaims::DoctorIsChoosen { healer, sq_dist, } => {
+                    debug!("doctor is choosen for {} of {:?} w/{:?}: heading for {:?}", form.id, form.kind(), form.health(), healer);
+                    let (fm, in_touch) = {
                         let bbox = form.bounding_box();
-                        (bbox.cx, bbox.cy, bbox.rect.inside(&Point { x: healer_fx, y: healer_fy, }))
+                        (bbox.mass, bbox.rect.inside(&healer))
                     };
                     if in_touch {
                         tactic.cancel(form.id);
@@ -122,13 +110,13 @@ pub fn run<R>(mut form: FormationRef, atsral_fc: &mut AtsralForecast, tactic: &m
                         tactic.plan(rng, Plan {
                             form_id: form.id,
                             tick: config.world.tick_index,
-                            desire: Desire::HurryToDoctor { fx, fy, x: healer_fx, y: healer_fy, sq_dist, },
+                            desire: Desire::HurryToDoctor { fm, goal: healer, sq_dist, },
                         });
                     }
                 },
-                AtsralProclaims::EscapeCorrect { fx, fy, foe_fx, foe_fy, } => {
+                AtsralProclaims::EscapeCorrect { fm, foe_fm, } => {
                     tactic.cancel(form.id);
-                    run_away(Some((foe_fx, foe_fy, fx, fy)), true, form, config.world, tactic, rng);
+                    run_away(Some((foe_fm, fm)), true, form, config.world, tactic, rng);
                 },
             },
     }
@@ -142,13 +130,13 @@ fn listen_to_atsral<'a>(form: &mut FormationRef<'a>, game: &Game, me: &Player, a
     for cry in atsral.inbox(self_form_id) {
         match (cry, &*form.current_plan()) {
             // this is cry from myself
-            (Cry::ImUnderAttack { form_id, fx, fy, foe: Some(FoeFormation { fx: foe_fx, fy: foe_fy, .. }), .. }, plan) if form_id == self_form_id =>
+            (Cry::ImUnderAttack { form_id, fm, foe: Some(FoeFormation { fm: foe_fm, .. }), .. }, plan) if form_id == self_form_id =>
                 if me.remaining_nuclear_strike_cooldown_ticks == 0 {
                     // I am able to nuke my offender
-                    return AtsralProclaims::NukeThem { fx, fy, foe_fx, foe_fy, };
-                } else if let &Some(Plan { desire: Desire::Escape { fx, fy, corrected: false, .. }, .. }) = plan {
+                    return AtsralProclaims::NukeThem { fm, foe_fm, };
+                } else if let &Some(Plan { desire: Desire::Escape { fm, corrected: false, .. }, .. }) = plan {
                     // escape plan could be corrected
-                    return AtsralProclaims::EscapeCorrect { fx, fy, foe_fx, foe_fy, };
+                    return AtsralProclaims::EscapeCorrect { fm, foe_fm, };
                 },
             // otherwise ignore cries from myself
             (Cry::ImUnderAttack { form_id, .. }, ..) if form_id == self_form_id =>
@@ -166,20 +154,20 @@ fn listen_to_atsral<'a>(form: &mut FormationRef<'a>, game: &Game, me: &Player, a
             (Cry::ImUnderAttack { .. }, &Some(Plan { desire: Desire::Nuke { .. }, ..})) =>
                 (),
             // respond to the cry if we could possibly help
-            (Cry::ImUnderAttack { form_id, fx, fy, escape_x, escape_y, foe, .. }, ..) =>
+            (Cry::ImUnderAttack { form_id, fm, escape, foe, .. }, ..) =>
                 if combat_info(game, &self_kind, &foe.as_ref().map(|ff| ff.kind)).damage > 0 {
-                    return AtsralProclaims::ReadyToHelp { form_id, distress_fx: fx, distress_fy: fy, escape_x, escape_y, foe, };
+                    return AtsralProclaims::ReadyToHelp { form_id, distress: fm, escape, foe, };
                 },
 
             // someone responds to our help cry: choose the best one
-            (Cry::ReadyToHelp { helper_form_id, helper_kind, helper_fx, helper_fy, distress_fx, distress_fy, escape_x, escape_y, foe, .. }, ..) => {
+            (Cry::ReadyToHelp { helper_form_id, helper_kind, helper, distress, escape, foe, .. }, ..) => {
                 let combat_mine = combat_info(game, &helper_kind, &foe.as_ref().map(|ff| ff.kind));
                 let combat_his = combat_info(game, &foe.as_ref().map(|ff| ff.kind), &helper_kind);
                 let real_damage = combat_mine.damage - combat_his.defence;
-                let sq_dist_to_helper = sq_dist(distress_fx, distress_fy, helper_fx, helper_fy);
-                let sq_dist_to_escape = sq_dist(distress_fx, distress_fy, escape_x, escape_y);
+                let sq_dist_to_helper = sq_dist(distress.x, distress.y, helper.x, helper.y);
+                let sq_dist_to_escape = sq_dist(distress.x, distress.y, escape.x, escape.y);
                 let dist_ratio = sq_dist_to_helper as f64 / sq_dist_to_escape as f64;
-                if best_helper.as_ref().map(|&(dratio, rdmg, _, _, _)| {
+                if best_helper.as_ref().map(|&(dratio, rdmg, _, _)| {
                     if dist_ratio < consts::HELPER_BY_ESCAPE_DIST_RATIO_SQ && dratio < consts::HELPER_BY_ESCAPE_DIST_RATIO_SQ {
                         (real_damage > rdmg) || (real_damage == rdmg && dist_ratio < dratio)
                     } else if dist_ratio >= consts::HELPER_BY_ESCAPE_DIST_RATIO_SQ && dratio >= consts::HELPER_BY_ESCAPE_DIST_RATIO_SQ {
@@ -190,18 +178,18 @@ fn listen_to_atsral<'a>(form: &mut FormationRef<'a>, game: &Game, me: &Player, a
                         false
                     }
                 }).unwrap_or(true) {
-                    let (target_fx, target_fy) = (distress_fx, distress_fy);
-                    best_helper = Some((dist_ratio, real_damage, helper_form_id, target_fx, target_fy));
+                    let target = distress;
+                    best_helper = Some((dist_ratio, real_damage, helper_form_id, target));
                 }
             },
 
             // we have been chosen as a protector
-            (Cry::ComePunishThem { distress_fx, distress_fy, .. }, ..) =>
-                return AtsralProclaims::GoPunish { distress_fx, distress_fy, },
+            (Cry::ComePunishThem { distress, .. }, ..) =>
+                return AtsralProclaims::GoPunish { distress, },
 
             // we have been found a victim
-            (Cry::ComeHuntHim { fx, fy, damage, foe, }, ..) =>
-                return AtsralProclaims::GoHunt { fx, fy, damage, foe, },
+            (Cry::ComeHuntHim { fm, damage, foe, }, ..) =>
+                return AtsralProclaims::GoHunt { fm, damage, foe, },
 
             // should not be even received
             (Cry::ReadyToHunt { .. }, ..) =>
@@ -212,25 +200,25 @@ fn listen_to_atsral<'a>(form: &mut FormationRef<'a>, game: &Game, me: &Player, a
                 (),
 
             // someone needs a doctor
-            (Cry::NeedDoctor { form_id, fx, fy, }, ..) =>
+            (Cry::NeedDoctor { form_id, fm, }, ..) =>
                 if let Some(VehicleType::Arrv) = self_kind {
-                    return AtsralProclaims::ReadyToHeal { form_id, ill_fx: fx, ill_fy: fy, };
+                    return AtsralProclaims::ReadyToHeal { form_id, ill: fm, };
                 },
 
             // someone responds to our need doctor cry: choose the best one
-            (Cry::ReadyToHeal { healer_fx, healer_fy, ill_fx, ill_fy, .. }, ..) => {
-                let sq_dist_to_healer = sq_dist(healer_fx, healer_fy, ill_fx, ill_fy);
+            (Cry::ReadyToHeal { healer, ill, .. }, ..) => {
+                let sq_dist_to_healer = sq_dist(healer.x, healer.y, ill.x, ill.y);
                 if best_healer.as_ref().map(|&(sq_dist, _)| sq_dist_to_healer < sq_dist).unwrap_or(true) {
-                    best_healer = Some((sq_dist_to_healer, (healer_fx, healer_fy)));
+                    best_healer = Some((sq_dist_to_healer, healer));
                 }
             },
         }
     }
 
-    if let Some((_, _, form_id, fx, fy)) = best_helper {
-        AtsralProclaims::ProtectorIsChoosen { form_id, fx, fy, }
-    } else if let Some ((sq_dist, (healer_fx, healer_fy))) = best_healer {
-        AtsralProclaims::DoctorIsChoosen { healer_fx, healer_fy, sq_dist }
+    if let Some((_, _, form_id, fm)) = best_helper {
+        AtsralProclaims::ProtectorIsChoosen { form_id, fm, }
+    } else if let Some ((sq_dist, healer)) = best_healer {
+        AtsralProclaims::DoctorIsChoosen { healer, sq_dist }
     } else {
         AtsralProclaims::Tranquillity
     }
@@ -287,10 +275,10 @@ pub fn basic_insticts<'a, R>(
         GoCurious,
         Scatter,
         ScatterOrScout,
-        RunAway(Option<(AxisX, AxisY, AxisX, AxisY)>),
-        YellForHelp { fx: AxisX, fy: AxisY, escape_x: AxisX, escape_y: AxisY, },
-        YellForDoctor { fx: AxisX, fy: AxisY, },
-        YellForHunt { fx: AxisX, fy: AxisY, },
+        RunAway(Option<(Point, Point)>),
+        YellForHelp { fm: Point, escape: Point, },
+        YellForDoctor { fm: Point, },
+        YellForHunt { fm: Point, },
     }
 
 
@@ -300,11 +288,11 @@ pub fn basic_insticts<'a, R>(
         (&mut None, Trigger::None) =>
             Reaction::GoCurious,
         // we are escaping right now and nothing disturbs us: yell for help
-        (&mut Some(Plan { desire: Desire::Escape { fx, fy, x: escape_x, y: escape_y, .. }, ..}), Trigger::None) =>
-            Reaction::YellForHelp { fx, fy, escape_x, escape_y, },
+        (&mut Some(Plan { desire: Desire::Escape { fm, goal: escape, .. }, ..}), Trigger::None) =>
+            Reaction::YellForHelp { fm, escape, },
         // we are scouting right now and nothing disturbs us: yell for hunt
-        (&mut Some(Plan { desire: Desire::ScoutTo { fx, fy, .. }, ..}), Trigger::None) =>
-            Reaction::YellForHunt { fx, fy, },
+        (&mut Some(Plan { desire: Desire::ScoutTo { fm, .. }, ..}), Trigger::None) =>
+            Reaction::YellForHunt { fm, },
         // we are doing something and nothing disturbs us: keep following the plan
         (&mut Some(..), Trigger::None) =>
             Reaction::KeepOn,
@@ -313,17 +301,17 @@ pub fn basic_insticts<'a, R>(
         (&mut None, Trigger::Sick) =>
             Reaction::ScatterOrScout,
         // we are scouting right now, it feels sick: yell for doctor
-        (&mut Some(Plan { desire: Desire::ScoutTo { fx, fy, .. }, ..}), Trigger::Sick) =>
-            Reaction::YellForDoctor { fx, fy, },
+        (&mut Some(Plan { desire: Desire::ScoutTo { fm, .. }, ..}), Trigger::Sick) =>
+            Reaction::YellForDoctor { fm, },
         // we are attacking right now, it feels sick: yell for doctor
-        (&mut Some(Plan { desire: Desire::Attack { fx, fy, .. }, ..}), Trigger::Sick) =>
-            Reaction::YellForDoctor { fx, fy, },
+        (&mut Some(Plan { desire: Desire::Attack { fm, .. }, ..}), Trigger::Sick) =>
+            Reaction::YellForDoctor { fm, },
         // we are escaping right now, it feels sick: yell for doctor
-        (&mut Some(Plan { desire: Desire::Escape { fx, fy, .. }, ..}), Trigger::Sick) =>
-            Reaction::YellForDoctor { fx, fy, },
+        (&mut Some(Plan { desire: Desire::Escape { fm, .. }, ..}), Trigger::Sick) =>
+            Reaction::YellForDoctor { fm, },
         // we are hunting right now, it feels sick: yell for doctor
-        (&mut Some(Plan { desire: Desire::Hunt { fx, fy, .. }, ..}), Trigger::Sick) =>
-            Reaction::YellForDoctor { fx, fy, },
+        (&mut Some(Plan { desire: Desire::Hunt { fm, .. }, ..}), Trigger::Sick) =>
+            Reaction::YellForDoctor { fm, },
         // we are moving towards doctor right now, it feels sick: so keep moving
         (&mut Some(Plan { desire: Desire::HurryToDoctor { .. }, ..}), Trigger::Sick) =>
             Reaction::KeepOn,
@@ -338,23 +326,23 @@ pub fn basic_insticts<'a, R>(
         (&mut None, Trigger::Hurts) =>
             Reaction::RunAway(None),
         // we are under attack while scouting: run away
-        (&mut Some(Plan { desire: Desire::ScoutTo { fx, fy, x, y, .. }, ..}), Trigger::Hurts) =>
-            Reaction::RunAway(Some((x, y, fx, fy))),
+        (&mut Some(Plan { desire: Desire::ScoutTo { fm, goal, .. }, ..}), Trigger::Hurts) =>
+            Reaction::RunAway(Some((goal, fm))),
         // we are under attack while attacking: run away
-        (&mut Some(Plan { desire: Desire::Attack { fx, fy, x, y, .. }, ..}), Trigger::Hurts) =>
-            Reaction::RunAway(Some((x, y, fx, fy))),
+        (&mut Some(Plan { desire: Desire::Attack { fm, goal, .. }, ..}), Trigger::Hurts) =>
+            Reaction::RunAway(Some((goal, fm))),
         // we are under attack while running away: keep on escaping
-        (&mut Some(Plan { desire: Desire::Escape { fx, fy, x: escape_x, y: escape_y, .. }, .. }), Trigger::Hurts) =>
-            Reaction::YellForHelp { fx, fy, escape_x, escape_y, },
+        (&mut Some(Plan { desire: Desire::Escape { fm, goal: escape, .. }, .. }), Trigger::Hurts) =>
+            Reaction::YellForHelp { fm, escape, },
         // we are under attack while hunting: run away
-        (&mut Some(Plan { desire: Desire::Hunt { fx, fy, x, y, .. }, .. }), Trigger::Hurts) =>
-            Reaction::RunAway(Some((x, y, fx, fy))),
+        (&mut Some(Plan { desire: Desire::Hunt { fm, goal, .. }, .. }), Trigger::Hurts) =>
+            Reaction::RunAway(Some((goal, fm))),
         // we are under attack while moving towards doctor: run away
-        (&mut Some(Plan { desire: Desire::HurryToDoctor { fx, fy, x, y, .. }, .. }), Trigger::Hurts) =>
-            Reaction::RunAway(Some((x, y, fx, fy))),
-        // we are under attack while nuking: continue nuking then
-        (&mut Some(Plan { desire: Desire::Nuke { fx, fy, strike_x, strike_y, .. }, ..}), Trigger::Hurts) =>
-            Reaction::RunAway(Some((strike_x, strike_y, fx, fy))),
+        (&mut Some(Plan { desire: Desire::HurryToDoctor { fm, goal, .. }, .. }), Trigger::Hurts) =>
+            Reaction::RunAway(Some((goal, fm))),
+        // we are under attack while nuking: run away anyways
+        (&mut Some(Plan { desire: Desire::Nuke { fm, strike, .. }, ..}), Trigger::Hurts) =>
+            Reaction::RunAway(Some((strike, fm))),
         // we are currently scattering while being attacked: escape in random direction
         (&mut Some(Plan { desire: Desire::FormationSplit { .. }, .. }), Trigger::Hurts) =>
             Reaction::RunAway(None),
@@ -375,8 +363,8 @@ pub fn basic_insticts<'a, R>(
         (&mut Some(Plan { desire: Desire::Hunt { .. }, .. }), Trigger::Idle) =>
             Reaction::ScatterOrScout,
         // we are currently moving towards doctor and eventually stop moving: yell for a doctor once more
-        (&mut Some(Plan { desire: Desire::HurryToDoctor { fx, fy, .. }, .. }), Trigger::Idle) =>
-            Reaction::YellForDoctor { fx, fy, },
+        (&mut Some(Plan { desire: Desire::HurryToDoctor { fm, .. }, .. }), Trigger::Idle) =>
+            Reaction::YellForDoctor { fm, },
         // we are currently nuking and not moving: do something more useful
         (&mut Some(Plan { desire: Desire::Nuke { .. }, ..}), Trigger::Idle) =>
             Reaction::GoCurious,
@@ -421,40 +409,40 @@ pub fn basic_insticts<'a, R>(
             scout(form, world, tactic, rng),
         Reaction::RunAway(escape_vec) =>
             run_away(escape_vec, false, form, world, tactic, rng),
-        Reaction::YellForHelp { fx, fy, escape_x, escape_y, } => {
+        Reaction::YellForHelp { fm, escape, } => {
             atsral.cry(Cry::ImUnderAttack {
-                fx, fy, escape_x, escape_y,
+                fm, escape,
                 form_id: form.id,
                 foe: None,
             });
         },
-        Reaction::YellForHunt { fx, fy, } =>
+        Reaction::YellForHunt { fm, } =>
             atsral.cry(Cry::ReadyToHunt {
-                fx, fy,
+                fm,
                 form_id: form.id,
                 kind: form.kind().clone(),
             }),
-        Reaction::YellForDoctor { fx, fy, } =>
+        Reaction::YellForDoctor { fm, } =>
             atsral.cry(Cry::NeedDoctor {
-                fx, fy,
+                fm,
                 form_id: form.id,
             }),
     }
 }
 
 fn scout<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, rng: &mut R) where R: Rng {
-    let (fx, fy, fd) = {
+    let (fm, fd) = {
         let bbox = form.bounding_box();
-        (bbox.cx, bbox.cy, bbox.rect.max_side())
+        (bbox.mass, bbox.rect.max_side())
     };
-    let mut x = gen_range_fuse(rng, 0. - fx.x, world.width - fx.x, fx.x);
+    let mut x = gen_range_fuse(rng, 0. - fm.x.x, world.width - fm.x.x, fm.x.x);
     x /= consts::SCOUT_RANGE_FACTOR;
-    x += fx.x;
+    x += fm.x.x;
     if x < fd { x = fd; }
     if x > world.width - fd { x = world.width - fd; }
-    let mut y = gen_range_fuse(rng, 0. - fy.y, world.height - fy.y, fy.y);
+    let mut y = gen_range_fuse(rng, 0. - fm.y.y, world.height - fm.y.y, fm.y.y);
     y /= consts::SCOUT_RANGE_FACTOR;
-    y += fy.y;
+    y += fm.y.y;
     if y < fd { y = fd; }
     if y > world.height - fd { y = world.height - fd; }
 
@@ -462,11 +450,13 @@ fn scout<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic, 
         form_id: form.id,
         tick: world.tick_index,
         desire: Desire::ScoutTo {
-            fx, fy,
-            x: axis_x(x),
-            y: axis_y(y),
+            fm,
+            goal: Point {
+                x: axis_x(x),
+                y: axis_y(y),
+            },
             kind: form.kind().clone(),
-            sq_dist: sq_dist(fx, fy, axis_x(x), axis_y(y)),
+            sq_dist: sq_dist(fm.x, fm.y, axis_x(x), axis_y(y)),
         },
     });
 }
@@ -495,7 +485,7 @@ fn scatter<'a, R>(mut form: FormationRef<'a>, world: &World, tactic: &mut Tactic
 }
 
 fn run_away<'a, R>(
-    escape_vec: Option<(AxisX, AxisY, AxisX, AxisY)>,
+    escape_vec: Option<(Point, Point)>,
     corrected: bool,
     mut form: FormationRef<'a>,
     world: &World,
@@ -503,9 +493,9 @@ fn run_away<'a, R>(
     rng: &mut R)
     where R: Rng
 {
-    let (fx, fy, fd) = {
+    let (fm, fd) = {
         let bbox = form.bounding_box();
-        (bbox.cx, bbox.cy, bbox.rect.max_side())
+        (bbox.mass, bbox.rect.max_side())
     };
     let d_durability = {
         let (dvts, _) = form.dvt_sums(world.tick_index);
@@ -513,27 +503,34 @@ fn run_away<'a, R>(
     };
 
     // try to detect right escape direction
-    let (x, y) = escape_vec
-        .and_then(|(start_x, start_y, end_x, end_y)| {
-            let x = fx + (end_x - start_x) * consts::ESCAPE_BOUNCE_FACTOR;
-            let y = fy + (end_y - start_y) * consts::ESCAPE_BOUNCE_FACTOR;
-            if x.x > fd && x.x < (world.width - fd) && y.y > fd && y.y < (world.height - fd) {
-                Some((x, y))
+    let goal = escape_vec
+        .and_then(|(src, dst)| {
+            let p = Point {
+                x: fm.x + (dst.x - src.x) * consts::ESCAPE_BOUNCE_FACTOR,
+                y: fm.y + (dst.y - src.y) * consts::ESCAPE_BOUNCE_FACTOR,
+            };
+            let screen = Rect {
+                lt: Point { x: axis_x(fd), y: axis_y(fd), },
+                rb: Point { x: axis_x(world.width - fd), y: axis_y(world.height - fd), },
+            };
+            if screen.inside(&p) {
+                Some(p)
             } else {
                 None
             }
         })
         .unwrap_or_else(|| {
             // cannot detect right escape direction: run away in random one
-            let x = axis_x(gen_range_fuse(rng, fd, world.width - fd, world.width / 2.));
-            let y = axis_y(gen_range_fuse(rng, fd, world.height - fd, world.height / 2.));
-            (x, y)
+            Point {
+                x: axis_x(gen_range_fuse(rng, fd, world.width - fd, world.width / 2.)),
+                y: axis_y(gen_range_fuse(rng, fd, world.height - fd, world.height / 2.)),
+            }
         });
     tactic.plan(rng, Plan {
         form_id: form.id,
         tick: world.tick_index,
         desire: Desire::Escape {
-            x, y, fx, fy, corrected,
+            fm, goal, corrected,
             danger_coeff: 0. - (d_durability as f64),
         },
     });

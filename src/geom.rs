@@ -65,8 +65,7 @@ impl Rect {
 #[derive(Clone, PartialEq, Default, Debug)]
 pub struct Boundary {
     pub rect: Rect,
-    pub cx: AxisX,
-    pub cy: AxisY,
+    pub mass: Point,
     pub density: f64,
 }
 
@@ -88,48 +87,50 @@ impl Boundary {
             total += 1;
         }
         Boundary {
-            cx: axis_x(cx_s / total as f64),
-            cy: axis_y(cy_s / total as f64),
+            mass: Point {
+                x: axis_x(cx_s / total as f64),
+                y: axis_y(cy_s / total as f64),
+            },
             density: area_s / ((rect.right() - rect.left()).x * (rect.bottom() - rect.top()).y),
             rect,
         }
     }
 
     pub fn sq_radius(&self) -> f64 {
-        let wl = self.cx - self.rect.left();
-        let wr = self.rect.right() - self.cx;
+        let wl = self.mass.x - self.rect.left();
+        let wr = self.rect.right() - self.mass.x;
         let w = wl.x.max(wr.x);
-        let ht = self.cy - self.rect.top();
-        let hb = self.rect.bottom() - self.cy;
+        let ht = self.mass.y - self.rect.top();
+        let hb = self.rect.bottom() - self.mass.y;
         let h = ht.y.max(hb.y);
         (w * w) + (h * h)
     }
 
     pub fn predict_collision(&self, target: &Point, obstacle: &Boundary) -> bool {
         // check source
-        let scalar = ((obstacle.cx - self.cx) * (target.x - self.cx)).x + ((obstacle.cy - self.cy) * (target.y - self.cy)).y;
+        let scalar = ((obstacle.mass.x - self.mass.x) * (target.x - self.mass.x)).x + ((obstacle.mass.y - self.mass.y) * (target.y - self.mass.y)).y;
         if scalar < 0. {
             return false;
         }
         // check destination
         let limit = self.sq_radius_fuzzy_sum(obstacle);
-        let scalar = ((obstacle.cx - target.x) * (self.cx - target.x)).x + ((obstacle.cy - target.y) * (self.cy - target.y)).y;
+        let scalar = ((obstacle.mass.x - target.x) * (self.mass.x - target.x)).x + ((obstacle.mass.y - target.y) * (self.mass.y - target.y)).y;
         if scalar < 0. {
-            return sq_dist(obstacle.cx, obstacle.cy, target.x, target.y) < limit
+            return sq_dist(obstacle.mass.x, obstacle.mass.y, target.x, target.y) < limit
         }
         // check distance to trajectory
-        let traj = Segment { src: Point { x: self.cx, y: self.cy, }, dst: target.clone(), };
-        let sqd = traj.sq_dist_to_point(&Point { x: obstacle.cx, y: obstacle.cy, });
+        let traj = Segment { src: Point { x: self.mass.x, y: self.mass.y, }, dst: target.clone(), };
+        let sqd = traj.sq_dist_to_point(&Point { x: obstacle.mass.x, y: obstacle.mass.y, });
         sqd < limit
     }
 
     pub fn correct_trajectory(&self, obstacle: &Boundary) -> Point {
         let limit = self.sq_radius_fuzzy_sum(obstacle);
-        let sq_dist = sq_dist(self.cx, self.cy, obstacle.cx, obstacle.cy);
+        let sq_dist = sq_dist(self.mass.x, self.mass.y, obstacle.mass.x, obstacle.mass.y);
         let factor_sq = limit / sq_dist;
         let factor = factor_sq.sqrt();
-        let x = (self.cx - obstacle.cx) * factor + obstacle.cx;
-        let y = (self.cy - obstacle.cy) * factor + obstacle.cy;
+        let x = (self.mass.x - obstacle.mass.x) * factor + obstacle.mass.x;
+        let y = (self.mass.y - obstacle.mass.y) * factor + obstacle.mass.y;
         Point { x, y }
     }
 
@@ -227,8 +228,10 @@ mod test {
             rect: Rect {
                 lt: Point { x: axis_x(10.), y: axis_y(10.), },
                 rb: Point { x: axis_x(14.0), y: axis_y(13.0), }, },
-            cx: axis_x(12.),
-            cy: axis_y(11.5),
+            mass: Point {
+                x: axis_x(12.),
+                y: axis_y(11.5),
+            },
             ..Default::default()
         };
         assert_eq!(ra.sq_radius(), 6.25);
@@ -237,8 +240,10 @@ mod test {
                 lt: Point { x: axis_x(10.), y: axis_y(10.), },
                 rb: Point { x: axis_x(15.), y: axis_y(14.), },
             },
-            cx: axis_x(11.),
-            cy: axis_y(13.),
+            mass: Point {
+                x: axis_x(11.),
+                y: axis_y(13.),
+            },
             ..Default::default()
         };
         assert_eq!(rb.sq_radius(), 25.);
@@ -266,8 +271,10 @@ mod test {
                 lt: Point { x: axis_x(20.), y: axis_y(10.), },
                 rb: Point { x: axis_x(25.), y: axis_y(14.), },
             },
-            cx: axis_x(21.),
-            cy: axis_y(13.),
+            mass: Point {
+                x: axis_x(21.),
+                y: axis_y(13.),
+            },
             ..Default::default()
         };
         let rb = Boundary {
@@ -275,8 +282,10 @@ mod test {
                 lt: Point { x: axis_x(0.), y: axis_y(10.), },
                 rb: Point { x: axis_x(5.), y: axis_y(14.), },
             },
-            cx: axis_x(1.),
-            cy: axis_y(13.),
+            mass: Point {
+                x: axis_x(1.),
+                y: axis_y(13.),
+            },
             ..Default::default()
         };
         assert_eq!(ra.sq_radius(), 25.0);
@@ -295,8 +304,10 @@ mod test {
                 lt: Point { x: axis_x(20.), y: axis_y(10.), },
                 rb: Point { x: axis_x(25.), y: axis_y(14.), },
             },
-            cx: axis_x(21.),
-            cy: axis_y(13.),
+            mass: Point {
+                x: axis_x(21.),
+                y: axis_y(13.),
+            },
             ..Default::default()
         };
         let rb = Boundary {
@@ -304,8 +315,10 @@ mod test {
                 lt: Point { x: axis_x(0.), y: axis_y(10.), },
                 rb: Point { x: axis_x(5.), y: axis_y(14.), },
             },
-            cx: axis_x(1.),
-            cy: axis_y(13.),
+            mass: Point {
+                x: axis_x(1.),
+                y: axis_y(13.),
+            },
             ..Default::default()
         };
         let target = rb.correct_trajectory(&ra);
@@ -321,8 +334,10 @@ mod test {
                 lt: Point { x: axis_x(29.), y: axis_y(81.97561338236046), },
                 rb: Point { x: axis_x(57.), y: axis_y(139.97561338236045), },
             },
-            cx: axis_x(43.),
-            cy: axis_y(110.97561338236036),
+            mass: Point {
+                x: axis_x(43.),
+                y: axis_y(110.97561338236036),
+            },
             density: 0.386895646993817,
         };
         let obstacle = Boundary {
@@ -330,8 +345,10 @@ mod test {
                 lt: Point { x: axis_x(59.), y: axis_y(81.97561338236046), },
                 rb: Point { x: axis_x(87.), y: axis_y(139.97561338236045), },
             },
-            cx: axis_x(73.),
-            cy: axis_y(110.97561338236035),
+            mass: Point {
+                x: axis_x(73.),
+                y: axis_y(110.97561338236035),
+            },
             density: 0.386895646993817,
         };
         assert_eq!(me.predict_collision(&Point { x: axis_x(487.4579573974935), y: axis_y(493.33292266981744), }, &obstacle), true);
@@ -346,8 +363,10 @@ mod test {
                 lt: Point { x: axis_x(164.), y: axis_y(164.), },
                 rb: Point { x: axis_x(222.), y: axis_y(222.), },
             },
-            cx: axis_x(193.),
-            cy: axis_y(193.),
+            mass: Point {
+                x: axis_x(193.),
+                y: axis_y(193.),
+            },
             density: 0.37355441778713294,
         };
         let obstacle = Boundary {
@@ -355,8 +374,10 @@ mod test {
                 lt: Point { x: axis_x(164.), y: axis_y(90.), },
                 rb: Point { x: axis_x(222.), y: axis_y(148.), },
             },
-            cx: axis_x(193.),
-            cy: axis_y(119.),
+            mass: Point {
+                x: axis_x(193.),
+                y: axis_y(119.),
+            },
             density: 0.37355441778713294,
         };
         assert_eq!(me.predict_collision(&Point { x: axis_x(207.04910379187322), y: axis_y(144.59873458304605), }, &obstacle), true);
