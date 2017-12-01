@@ -27,10 +27,16 @@ struct BypassKind {
     driven_corner: usize,
 }
 
+enum Movement {
+    TowardsGoal,
+    Bypass { bypass_pos: Point, kind: BypassKind, },
+}
+
 struct Step {
-    cost: f64,
+    hops: usize,
     position: Point,
-    bypass: Option<BypassKind>,
+    goal_sq_dist: f64,
+    movement: Movement,
     phead: usize,
 }
 
@@ -102,43 +108,50 @@ impl<T> Router<T> where T: RectUnit {
         cache.clear();
         cache.path_buf.push((src, 0));
         cache.queue.push(Step {
-            cost: src.sq_dist(&dst),
+            hops: 1,
             position: src,
-            bypass: None,
+            goal_sq_dist: src.sq_dist(&dst),
+            movement: Movement::TowardsGoal,
             phead: 1,
         });
 
         let unit_rect = unit.bounding_box();
         let unit_sq_speed = unit.speed() * unit.speed();
-        while let Some(Step { position, cost, bypass: mut maybe_bypass, phead, }) = cache.queue.pop() {
-            // check if node is visited
-            if let Some(bypass) = maybe_bypass.take() {
-                match cache.visited.get(&bypass) {
-                    Some(&Visit::NotYetVisited(prev_cost)) if cost > prev_cost =>
-                        continue,
-                    _ =>
-                        (),
-                }
-                cache.visited.insert(bypass, Visit::Visited);
-            }
-
-            // check if destination is reached (sq distance is around zero)
-            if zero_epsilon(cost) {
-                // restore full path
-                let mut ph = phead;
-                while ph != 0 {
-                    let (pos, next_ph) = cache.path_buf[ph - 1];
-                    cache.path.push(pos);
-                    ph = next_ph;
-                }
-                cache.path.reverse();
-                return Some(&cache.path);
-            }
+        while let Some(Step { hops, goal_sq_dist, position, movement, phead, }) = cache.queue.pop() {
+            let current_dst =
+                match movement {
+                    Movement::TowardsGoal => {
+                        // check if destination is reached (sq distance is around zero)
+                        if zero_epsilon(goal_sq_dist) {
+                            // restore full path
+                            let mut ph = phead;
+                            while ph != 0 {
+                                let (pos, next_ph) = cache.path_buf[ph - 1];
+                                cache.path.push(pos);
+                                ph = next_ph;
+                            }
+                            cache.path.reverse();
+                            return Some(&cache.path);
+                        }
+                        dst
+                    },
+                    Movement::Bypass { bypass_pos, kind: bypass, } => {
+                        // check if node is visited
+                        match cache.visited.get(&bypass) {
+                            Some(&Visit::NotYetVisited(prev_goal_sq_dist)) if goal_sq_dist > prev_goal_sq_dist =>
+                                continue,
+                            _ =>
+                                (),
+                        }
+                        cache.visited.insert(bypass, Visit::Visited);
+                        bypass_pos
+                    },
+                };
 
             let mut closest_obstacle: Option<(_, _)> = None;
 
             // find collisions with moving units
-            let route_chunk = Segment { src: position, dst, };
+            let route_chunk = Segment { src: position, dst: current_dst, };
             println!(" ;; step phead {}: examining route_chunk = {:?}", phead, route_chunk);
             let unit_corner_routes = unit_rect.corners_translate(&route_chunk);
             for unit_corner_route in unit_corner_routes.iter() {
@@ -196,21 +209,30 @@ use std::cmp::Ordering;
 
 impl Ord for Step {
     fn cmp(&self, other: &Step) -> Ordering {
-        if self.cost < other.cost {
-            if zero_epsilon(other.cost - self.cost) {
-                Ordering::Equal
-            } else {
-                Ordering::Greater
-            }
-        } else if self.cost > other.cost {
-            if zero_epsilon(self.cost - other.cost) {
-                Ordering::Equal
-            } else {
-                Ordering::Less
-            }
-        } else {
-            Ordering::Equal
-        }
+        other.hops
+            .cmp(&self.hops)
+            .then_with(|| match (self.movement, other.movement) {
+                (Movement::TowardsGoal, Movement::TowardsGoal) | (Movement::Bypass { .. }, Movement::Bypass { .. }) =>
+                    if self.goal_sq_dist < other.goal_sq_dist {
+                        if zero_epsilon(other.goal_sq_dist - self.goal_sq_dist) {
+                            Ordering::Equal
+                        } else {
+                            Ordering::Greater
+                        }
+                    } else if self.goal_sq_dist > other.goal_sq_dist {
+                        if zero_epsilon(self.goal_sq_dist - other.goal_sq_dist) {
+                            Ordering::Equal
+                        } else {
+                            Ordering::Less
+                        }
+                    } else {
+                        Ordering::Equal
+                    },
+                (Movement::TowardsGoal, Movement::Bypass { .. }) =>
+                    Ordering::Greater,
+                (Movement::Bypass { .. }, Movement::TowardsGoal) =>
+                    Ordering::Less,
+            })
     }
 }
 
