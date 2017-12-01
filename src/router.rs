@@ -1,28 +1,29 @@
-use std::f64::EPSILON;
 use std::collections::{HashMap, BinaryHeap};
 use super::qtree::{QuadTree, QuarterRectRef};
-use super::geom::{Point, Segment, Rect};
+use super::geom::{zero_epsilon, Point, Segment, Rect};
 
-pub struct Route<'a> {
-    pub bbox: Rect,
-    pub route: &'a [Point],
-}
-
-pub trait RectNomad {
+pub trait RectUnit {
+    fn bounding_box(&self) -> Rect;
     fn speed(&self) -> f64;
-    fn en_route(&self) -> [Segment; 4];
+    fn en_route(&self) -> Option<Segment>;
 }
 
 pub struct Router<T> {
     counter: usize,
-    qtree: QuadTree<usize>,
-    nomads: HashMap<usize, T>,
+    qt_moving: QuadTree<CornerRoute>,
+    qt_fixed: QuadTree<usize>,
+    units: HashMap<usize, T>,
+}
+
+struct CornerRoute {
+    unit_id: usize,
+    route: Segment,
 }
 
 #[derive(PartialEq, Eq, Hash)]
 struct BypassKind {
-    nomad_id: usize,
-    nomad_corner: usize,
+    unit_id: usize,
+    unit_corner: usize,
     driven_corner: usize,
 }
 
@@ -43,7 +44,8 @@ pub struct RouterCache<'a> {
     visited: HashMap<BypassKind, Visit>,
     path_buf: Vec<(Point, usize)>,
     path: Vec<Point>,
-    lookup_cache: Vec<QuarterRectRef<'a, usize>>,
+    qt_moving_cache: Vec<QuarterRectRef<'a, CornerRoute>>,
+    qt_fixed_cache: Vec<QuarterRectRef<'a, usize>>,
 }
 
 impl<'a> RouterCache<'a> {
@@ -53,7 +55,8 @@ impl<'a> RouterCache<'a> {
             visited: HashMap::new(),
             path_buf: Vec::new(),
             path: Vec::new(),
-            lookup_cache: Vec::new(),
+            qt_moving_cache: Vec::new(),
+            qt_fixed_cache: Vec::new(),
         }
     }
 
@@ -62,28 +65,40 @@ impl<'a> RouterCache<'a> {
         self.visited.clear();
         self.path_buf.clear();
         self.path.clear();
-        self.lookup_cache.clear();
+        self.qt_moving_cache.clear();
+        self.qt_fixed_cache.clear();
     }
 }
 
-impl<T> Router<T> where T: RectNomad {
-    pub fn from_iter<I>(area: Rect, items_iter: I) -> Router<T> where I: Iterator<Item = T> {
+impl<T> Router<T> where T: RectUnit {
+    pub fn from_iter<I>(area: Rect, units_iter: I) -> Router<T> where I: Iterator<Item = T> {
         let mut counter = 0;
-        let mut qtree = QuadTree::new(area);
-        let mut nomads = HashMap::new();
-        for item in items_iter {
-            let routes = item.en_route();
-            for seg in routes.iter() {
-                qtree.insert(&Rect { lt: seg.src, rb: seg.dst, }, counter);
+        let mut qt_moving = QuadTree::new(area.clone());
+        let mut qt_fixed = QuadTree::new(area);
+        let mut units = HashMap::new();
+        for unit in units_iter {
+            let bbox = unit.bounding_box();
+            if let Some(route) = unit.en_route() {
+                // this is a moving unit: index corners trajectories
+                let routes = bbox.corners_translate(&route);
+                for seg in routes.iter() {
+                    qt_moving.insert(&Rect { lt: seg.src, rb: seg.dst, }, CornerRoute {
+                        unit_id: counter,
+                        route: seg.clone(),
+                    });
+                }
+            } else {
+                // this is a fixed unit: index the bounding box
+                qt_fixed.insert(&bbox, counter);
             }
-            nomads.insert(counter, item);
+            units.insert(counter, unit);
             counter += 1;
         }
 
-        Router { counter, qtree, nomads, }
+        Router { counter, qt_moving, qt_fixed, units, }
     }
 
-    pub fn route<'q, 'a: 'q>(&'a self, rect: Rect, src: Point, dst: Point, cache: &'q mut RouterCache<'a>) -> Option<Route<'q>> {
+    pub fn route<'q, 'a: 'q>(&'a self, unit: &T, src: Point, dst: Point, cache: &'q mut RouterCache<'a>) -> Option<&'q [Point]> {
         cache.clear();
         cache.path_buf.push((src, 0));
         cache.queue.push(Step {
@@ -93,6 +108,8 @@ impl<T> Router<T> where T: RectNomad {
             phead: 1,
         });
 
+        let unit_rect = unit.bounding_box();
+        let unit_sq_speed = unit.speed() * unit.speed();
         while let Some(Step { position, cost, bypass: mut maybe_bypass, phead, }) = cache.queue.pop() {
             // check if node is visited
             if let Some(bypass) = maybe_bypass.take() {
@@ -106,7 +123,7 @@ impl<T> Router<T> where T: RectNomad {
             }
 
             // check if destination is reached (sq distance is around zero)
-            if cost < EPSILON {
+            if zero_epsilon(cost) {
                 // restore full path
                 let mut ph = phead;
                 while ph != 0 {
@@ -115,15 +132,51 @@ impl<T> Router<T> where T: RectNomad {
                     ph = next_ph;
                 }
                 cache.path.reverse();
-                return Some(Route { bbox: rect, route: &cache.path, });
+                return Some(&cache.path);
             }
 
-            // proceed with neighbours
-            let area = Rect { lt: position, rb: dst, };
-            for candidate_id in self.qtree.lookup(area, &mut cache.lookup_cache) {
-                let nomad = self.nomads.get(candidate_id).unwrap(); // should always succeed
+            let mut closest_obstacle: Option<(_, _)> = None;
 
+            // find collisions with moving units
+            let route_chunk = Segment { src: position, dst, };
+            let unit_corner_routes = unit_rect.corners_translate(&route_chunk);
+            for unit_corner_route in unit_corner_routes.iter() {
+                let route_bbox = Rect { lt: unit_corner_route.src, rb: unit_corner_route.dst, };
+                for corner_route_info in self.qt_moving.lookup(route_bbox, &mut cache.qt_moving_cache) {
+                    let corner_route = &corner_route_info.route;
+                    if let Some(cross) = unit_corner_route.intersection_point(corner_route) {
+                        let obstacle = self.units.get(&corner_route_info.unit_id).unwrap(); // should always succeed
+                        // one of wanderer corner trajectory intersects one of nomad corner trajectory
+
+                        // calculate moved obstacle position and it's moving time
+                        let obstacle_speed = obstacle.speed();
+                        let obstacle_travel_sq_distance = corner_route.src.sq_dist(&cross);
+                        let obstacle_travel_sq_time = obstacle_travel_sq_distance / (obstacle_speed * obstacle_speed);
+                        let obstacle_trans_vec = Point { x: cross.x - corner_route.src.x, y: cross.y - corner_route.src.y, };
+                        let obstacle_arrived = obstacle.bounding_box().translate(&obstacle_trans_vec);
+
+                        // calculate moved unit position
+                        let unit_travel_sq_distance = unit_sq_speed * obstacle_travel_sq_time;
+                        let sq_factor = unit_travel_sq_distance / unit_corner_route.sq_dist();
+                        let factor = sq_factor.sqrt();
+                        let unit_vec = unit_corner_route.to_vec();
+                        let unit_trans_vec = Point {
+                            x: unit_corner_route.src.x + unit_vec.x * factor,
+                            y: unit_corner_route.src.y + unit_vec.y * factor,
+                        };
+                        let unit_arrived = unit_rect.translate(&unit_trans_vec);
+
+                        if unit_arrived.intersects(&obstacle_arrived) {
+                            let collision_sq_dist = cross.sq_dist(&unit_corner_route.src);
+                            if closest_obstacle.as_ref().map(|co| collision_sq_dist < co.0).unwrap_or(true) {
+                                closest_obstacle = Some((collision_sq_dist, obstacle));
+                            }
+                        }
+                    }
+                }
             }
+
+            unimplemented!()
         }
 
         unimplemented!()
@@ -135,13 +188,13 @@ use std::cmp::Ordering;
 impl Ord for Step {
     fn cmp(&self, other: &Step) -> Ordering {
         if self.cost < other.cost {
-            if other.cost - self.cost < EPSILON {
+            if zero_epsilon(other.cost - self.cost) {
                 Ordering::Equal
             } else {
                 Ordering::Greater
             }
         } else if self.cost > other.cost {
-            if self.cost - other.cost < EPSILON {
+            if zero_epsilon(self.cost - other.cost) {
                 Ordering::Equal
             } else {
                 Ordering::Less
@@ -169,3 +222,35 @@ impl PartialEq for Step {
 }
 
 impl Eq for Step {}
+
+
+#[cfg(test)]
+mod test {
+    use super::super::geom::{axis_x, axis_y, Point, Segment, Rect};
+    use super::{RectUnit, Router, RouterCache};
+
+    struct RU(Rect, f64, Option<Segment>);
+    impl RectUnit for RU {
+        fn bounding_box(&self) -> Rect { self.0.clone() }
+        fn speed(&self) -> f64 { self.1 }
+        fn en_route(&self) -> Option<Segment> { self.2.clone() }
+    }
+
+    fn sg(src_x: f64, src_y: f64, dst_x: f64, dst_y: f64) -> Segment {
+        Segment { src: Point { x: axis_x(src_x), y: axis_y(src_y), }, dst: Point { x: axis_x(dst_x), y: axis_y(dst_y), }, }
+    }
+
+    fn rt(left: f64, top: f64, right: f64, bottom: f64) -> Rect {
+        Rect { lt: Point { x: axis_x(left), y: axis_y(top), }, rb: Point { x: axis_x(right), y: axis_y(bottom), }, }
+    }
+
+    #[test]
+    fn route_direct() {
+        let units = vec![RU(rt(20., 20., 30., 40.), 2., Some(sg(25., 30., 25., 50.)))];
+        let router = Router::from_iter(rt(0., 0., 1000., 1000.), units.into_iter());
+        let mut cache = RouterCache::new();
+        let unit = RU(rt(10., 10., 14., 14.,), 1., None);
+        let goal = sg(12., 12., 32., 32.,);
+        assert_eq!(router.route(&unit, goal.src, goal.dst, &mut cache), None);
+    }
+}

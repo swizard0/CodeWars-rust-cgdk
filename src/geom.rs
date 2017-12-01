@@ -53,11 +53,24 @@ impl Segment {
         sq_dist(self.src.x, self.src.y, self.dst.x, self.dst.y)
     }
 
+    pub fn to_vec(&self) -> Point {
+        Point { x: self.dst.x - self.src.x, y: self.dst.y - self.src.y, }
+    }
+
+    pub fn intersection_point(&self, other: &Segment) -> Option<Point> {
+        match self.intersects(other) {
+            Its::Intersection(p) | Its::ColinearOverlapping(p) =>
+                Some(p),
+            Its::ColinearDisjoint | Its::ParallelNonIntersecting | Its::NoIntersection =>
+                None,
+        }
+    }
+
     pub fn intersects(&self, other: &Segment) -> Its {
         let p = self.src;
-        let r = Point { x: self.dst.x - self.src.x, y: self.dst.y - self.src.y, };
+        let r = self.to_vec();
         let q = other.src;
-        let s = Point { x: other.dst.x - other.src.x, y: other.dst.y - other.src.y, };
+        let s = other.to_vec();
 
         // r × s
         let r_s = r.cross(&s);
@@ -136,6 +149,34 @@ impl Rect {
         let w = (self.right() - self.left()).x;
         let h = (self.bottom() - self.top()).y;
         w.max(h)
+    }
+
+    pub fn corners_translate(&self, path: &Segment) -> [Segment; 4] {
+        [
+            Segment {
+                src: Point { x: path.src.x - self.lt.x, y: path.src.y - self.lt.y, },
+                dst: Point { x: path.dst.x - self.lt.x, y: path.dst.y - self.lt.y, },
+            },
+            Segment {
+                src: Point { x: path.src.x - self.rb.x, y: path.src.y - self.lt.y, },
+                dst: Point { x: path.dst.x - self.rb.x, y: path.dst.y - self.lt.y, },
+            },
+            Segment {
+                src: Point { x: path.src.x - self.rb.x, y: path.src.y - self.rb.y, },
+                dst: Point { x: path.dst.x - self.rb.x, y: path.dst.y - self.rb.y, },
+            },
+            Segment {
+                src: Point { x: path.src.x - self.lt.x, y: path.src.y - self.rb.y, },
+                dst: Point { x: path.dst.x - self.lt.x, y: path.dst.y - self.rb.y, },
+            },
+        ]
+    }
+
+    pub fn translate(&self, vec: &Point) -> Rect {
+        Rect {
+            lt: Point { x: self.lt.x + vec.x, y: self.lt.y + vec.y, },
+            rb: Point { x: self.rb.x + vec.x, y: self.rb.y + vec.y, },
+        }
     }
 }
 
