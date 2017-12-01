@@ -120,6 +120,8 @@ impl Rect {
     pub fn top(&self) -> AxisY { self.lt.y }
     pub fn right(&self) -> AxisX { self.rb.x }
     pub fn bottom(&self) -> AxisY { self.rb.y }
+    pub fn rt(&self) -> Point { Point { x: self.right(), y: self.top(), } }
+    pub fn lb(&self) -> Point { Point { x: self.left(), y: self.bottom(), } }
 
     pub fn mid_x(&self) -> AxisX {
         (self.lt.x + self.rb.x) * 0.5
