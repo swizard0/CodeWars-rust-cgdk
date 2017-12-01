@@ -139,12 +139,15 @@ impl<T> Router<T> where T: RectUnit {
 
             // find collisions with moving units
             let route_chunk = Segment { src: position, dst, };
+            println!(" ;; step phead {}: examining route_chunk = {:?}", phead, route_chunk);
             let unit_corner_routes = unit_rect.corners_translate(&route_chunk);
             for unit_corner_route in unit_corner_routes.iter() {
                 let route_bbox = Rect { lt: unit_corner_route.src, rb: unit_corner_route.dst, };
                 for corner_route_info in self.qt_moving.lookup(route_bbox, &mut cache.qt_moving_cache) {
                     let corner_route = &corner_route_info.route;
+                    println!("  ;;; colliding routes {:?} with {:?}", unit_corner_route, corner_route);
                     if let Some(cross) = unit_corner_route.intersection_point(corner_route) {
+                        println!("  ;;; -> collides at {:?}", cross);
                         let obstacle = self.units.get(&corner_route_info.unit_id).unwrap(); // should always succeed
                         // one of wanderer corner trajectory intersects one of nomad corner trajectory
 
@@ -154,19 +157,25 @@ impl<T> Router<T> where T: RectUnit {
                         let obstacle_travel_sq_time = obstacle_travel_sq_distance / (obstacle_speed * obstacle_speed);
                         let obstacle_trans_vec = Point { x: cross.x - corner_route.src.x, y: cross.y - corner_route.src.y, };
                         let obstacle_arrived = obstacle.bounding_box().translate(&obstacle_trans_vec);
+                        println!("   ;;;; obstacle moving for {} by {} at {}",
+                                 obstacle_travel_sq_time.sqrt(), obstacle_travel_sq_distance.sqrt(), obstacle.speed());
+                        println!("   ;;;; obstacle_arrived: {:?}", obstacle_arrived);
 
                         // calculate moved unit position
                         let unit_travel_sq_distance = unit_sq_speed * obstacle_travel_sq_time;
                         let sq_factor = unit_travel_sq_distance / unit_corner_route.sq_dist();
                         let factor = sq_factor.sqrt();
                         let unit_vec = unit_corner_route.to_vec();
-                        let unit_trans_vec = Point {
-                            x: unit_corner_route.src.x + unit_vec.x * factor,
-                            y: unit_corner_route.src.y + unit_vec.y * factor,
-                        };
+                        println!(" ;; unit_vec = {:?}, factor = {}", unit_vec, factor);
+                        let unit_trans_vec = Point { x: unit_vec.x * factor, y: unit_vec.y * factor, };
+                        println!(" ;; unit_trans_vec = {:?}", unit_trans_vec);
                         let unit_arrived = unit_rect.translate(&unit_trans_vec);
+                        println!("   ;;;; unit moving for {} by {} at {}",
+                                 obstacle_travel_sq_time.sqrt(), unit_travel_sq_distance.sqrt(), unit.speed());
+                        println!("   ;;;; unit_arrived: {:?}", unit_arrived);
 
                         if unit_arrived.intersects(&obstacle_arrived) {
+                            println!("   ;;;; -> collides!");
                             let collision_sq_dist = cross.sq_dist(&unit_corner_route.src);
                             if closest_obstacle.as_ref().map(|co| collision_sq_dist < co.0).unwrap_or(true) {
                                 closest_obstacle = Some((collision_sq_dist, obstacle));

@@ -152,22 +152,26 @@ impl Rect {
     }
 
     pub fn corners_translate(&self, path: &Segment) -> [Segment; 4] {
+        let tr_lt = Segment { src: path.src, dst: self.lt, };
+        let tr_lt_vec = tr_lt.to_vec();
+        let tr_rb = Segment { src: path.src, dst: self.rb, };
+        let tr_rb_vec = tr_rb.to_vec();
         [
             Segment {
-                src: Point { x: path.src.x - self.lt.x, y: path.src.y - self.lt.y, },
-                dst: Point { x: path.dst.x - self.lt.x, y: path.dst.y - self.lt.y, },
+                src: Point { x: path.src.x + tr_lt_vec.x, y: path.src.y + tr_lt_vec.y, },
+                dst: Point { x: path.dst.x + tr_lt_vec.x, y: path.dst.y + tr_lt_vec.y, },
             },
             Segment {
-                src: Point { x: path.src.x - self.rb.x, y: path.src.y - self.lt.y, },
-                dst: Point { x: path.dst.x - self.rb.x, y: path.dst.y - self.lt.y, },
+                src: Point { x: path.src.x + tr_rb_vec.x, y: path.src.y + tr_lt_vec.y, },
+                dst: Point { x: path.dst.x + tr_rb_vec.x, y: path.dst.y + tr_lt_vec.y, },
             },
             Segment {
-                src: Point { x: path.src.x - self.rb.x, y: path.src.y - self.rb.y, },
-                dst: Point { x: path.dst.x - self.rb.x, y: path.dst.y - self.rb.y, },
+                src: Point { x: path.src.x + tr_rb_vec.x, y: path.src.y + tr_rb_vec.y, },
+                dst: Point { x: path.dst.x + tr_rb_vec.x, y: path.dst.y + tr_rb_vec.y, },
             },
             Segment {
-                src: Point { x: path.src.x - self.lt.x, y: path.src.y - self.rb.y, },
-                dst: Point { x: path.dst.x - self.lt.x, y: path.dst.y - self.rb.y, },
+                src: Point { x: path.src.x + tr_lt_vec.x, y: path.src.y + tr_rb_vec.y, },
+                dst: Point { x: path.dst.x + tr_lt_vec.x, y: path.dst.y + tr_rb_vec.y, },
             },
         ]
     }
