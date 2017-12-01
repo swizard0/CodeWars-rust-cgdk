@@ -434,4 +434,21 @@ mod test {
             ].as_ref())
         );
     }
+
+    #[test]
+    fn route_three_moving_obstacles() {
+        let units = vec![
+            RU(rt(80., 110., 100., 130.), 1., Some(sg(90., 120., 30., 120.))),
+            RU(rt(90., 130., 110., 150.), 1., Some(sg(100., 140., 40., 140.))),
+            RU(rt(80., 150., 100., 170.), 1., Some(sg(90., 160., 30., 160.))),
+        ];
+        let router = Router::from_iter(rt(0., 0., 1000., 1000.), units.into_iter());
+        let mut cache = RouterCache::new();
+        let unit = RU(rt(10., 138., 14., 142.,), 2., None);
+        let goal = sg(12., 140., 82., 140.,);
+        assert_eq!(
+            router.route(&unit, goal.src, goal.dst, &mut cache).map(|r| r.hops),
+            None
+        );
+    }
 }
