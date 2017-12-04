@@ -25,10 +25,10 @@ pub mod tactic;
 pub mod atsral;
 #[path = "common.rs"]
 pub mod common;
-#[path = "router.rs"]
-pub mod router;
-#[path = "qtree.rs"]
-pub mod qtree;
+// #[path = "router.rs"]
+// pub mod router;
+#[path = "kdtree.rs"]
+pub mod kdtree;
 #[path = "geom.rs"]
 pub mod geom;
 #[path = "side.rs"]
