@@ -27,6 +27,8 @@ pub mod atsral;
 pub mod common;
 // #[path = "router.rs"]
 // pub mod router;
+#[path = "router_geom.rs"]
+pub mod router_geom;
 #[path = "kdtree.rs"]
 pub mod kdtree;
 #[path = "geom.rs"]
