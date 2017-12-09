@@ -170,8 +170,8 @@ impl kdtree::Shape for MotionShape {
     fn cut(&self, fragment: &BoundingBox, cut_axis: &Axis, cut_coord: &Coord) -> Option<(BoundingBox, BoundingBox)> {
         match (cut_axis, cut_coord, self.route_stats.as_ref()) {
             (&Axis::X, &Coord::XY(cut_x), Some(&RouteStats { speed_x, speed_y, .. })) => {
-                assert!(cut_x >= fragment.min.p2d.x.x);
-                assert!(cut_x <= fragment.max.p2d.x.x);
+                assert!(cut_x >= self.bounding_box.min.p2d.x.x);
+                assert!(cut_x <= self.bounding_box.max.p2d.x.x);
                 if speed_x < 0. {
                     // movement to the left
                     let move_time = (cut_x - self.bounding_box.max.p2d.x.x) / speed_x;
@@ -282,9 +282,28 @@ impl kdtree::Shape for MotionShape {
                     }
                 }
             },
+            (&Axis::X, &Coord::XY(cut_x), None) => {
+                assert!(cut_x >= self.bounding_box.min.p2d.x.x);
+                assert!(cut_x <= self.bounding_box.max.p2d.x.x);
+                let bbox_l = BoundingBox {
+                    min: self.bounding_box.min,
+                    max: Point {
+                        p2d: geom::Point { x: geom::axis_x(cut_x), y: self.bounding_box.max.p2d.y, },
+                        time: self.bounding_box.max.time,
+                    },
+                };
+                let bbox_r = BoundingBox {
+                    min: Point {
+                        p2d: geom::Point { x: geom::axis_x(cut_x), y: self.bounding_box.min.p2d.y, },
+                        time: self.bounding_box.min.time,
+                    },
+                    max: self.bounding_box.max,
+                };
+                Some((bbox_l, bbox_r))
+            },
             (&Axis::Y, &Coord::XY(cut_y), Some(&RouteStats { speed_x, speed_y, .. })) => {
-                assert!(cut_y >= fragment.min.p2d.y.y);
-                assert!(cut_y <= fragment.max.p2d.y.y);
+                assert!(cut_y >= self.bounding_box.min.p2d.y.y);
+                assert!(cut_y <= self.bounding_box.max.p2d.y.y);
                 if speed_y < 0. {
                     // movement to the top
                     let move_time = (cut_y - self.bounding_box.max.p2d.y.y) / speed_y;
@@ -395,9 +414,44 @@ impl kdtree::Shape for MotionShape {
                     }
                 }
             },
+            (&Axis::Y, &Coord::XY(cut_y), None) => {
+                assert!(cut_y >= self.bounding_box.min.p2d.y.y);
+                assert!(cut_y <= self.bounding_box.max.p2d.y.y);
+                let bbox_l = BoundingBox {
+                    min: self.bounding_box.min,
+                    max: Point {
+                        p2d: geom::Point { x: self.bounding_box.max.p2d.x, y: geom::axis_y(cut_y), },
+                        time: self.bounding_box.max.time,
+                    },
+                };
+                let bbox_r = BoundingBox {
+                    min: Point {
+                        p2d: geom::Point { x: self.bounding_box.min.p2d.x, y: geom::axis_y(cut_y), },
+                        time: self.bounding_box.min.time,
+                    },
+                    max: self.bounding_box.max,
+                };
+                Some((bbox_l, bbox_r))
+            },
             (&Axis::Time, &Coord::Time(TimeMotion::Moment(m)), _) => {
-
-                unimplemented!()
+                let cut_m = TimeMotion::Moment(m);
+                assert!(cut_m >= self.bounding_box.min.time);
+                assert!(cut_m <= self.bounding_box.max.time);
+                let bbox_l = BoundingBox {
+                    min: self.bounding_box.min,
+                    max: Point {
+                        p2d: self.bounding_box.max.p2d,
+                        time: cut_m,
+                    },
+                };
+                let bbox_r = BoundingBox {
+                    min: Point {
+                        p2d: self.bounding_box.min.p2d,
+                        time: cut_m,
+                    },
+                    max: self.bounding_box.max,
+                };
+                Some((bbox_l, bbox_r))
             },
             _ =>
                 unreachable!(),
