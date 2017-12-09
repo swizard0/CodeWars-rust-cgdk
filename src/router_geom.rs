@@ -635,4 +635,31 @@ mod test {
         assert_eq!(bbox_lrr.max_corner().coord(&Axis::Y), Coord::XY(96.14285714285714));
         assert_eq!(bbox_lrr.max_corner().coord(&Axis::Time), Coord::Time(TimeMotion::Moment(21.428571428571427)));
     }
+
+    #[test]
+    fn motion_shape_cut_future_with_route() {
+        let shape = MotionShape::new(
+            geom::Rect {
+                lt: geom::Point { x: geom::axis_x(45.), y: geom::axis_y(45.), },
+                rb: geom::Point { x: geom::axis_x(55.), y: geom::axis_y(55.), },
+            },
+            Some((geom::Segment {
+                src: geom::Point { x: geom::axis_x(50.), y: geom::axis_y(50.), },
+                dst: geom::Point { x: geom::axis_x(64.), y: geom::axis_y(98.), },
+            }, 2.))
+        );
+        let (bbox_l, bbox_r) = shape.cut(&shape.bounding_box(), &Axis::Time, &Coord::Time(TimeMotion::Moment(50.))).unwrap();
+        assert_eq!(bbox_l.min_corner().coord(&Axis::X), Coord::XY(45.));
+        assert_eq!(bbox_l.min_corner().coord(&Axis::Y), Coord::XY(45.));
+        assert_eq!(bbox_l.min_corner().coord(&Axis::Time), Coord::Time(TimeMotion::Moment(0.)));
+        assert_eq!(bbox_l.max_corner().coord(&Axis::X), Coord::XY(69.));
+        assert_eq!(bbox_l.max_corner().coord(&Axis::Y), Coord::XY(103.));
+        assert_eq!(bbox_l.max_corner().coord(&Axis::Time), Coord::Time(TimeMotion::Moment(50.)));
+        assert_eq!(bbox_r.min_corner().coord(&Axis::X), Coord::XY(59.));
+        assert_eq!(bbox_r.min_corner().coord(&Axis::Y), Coord::XY(93.));
+        assert_eq!(bbox_r.min_corner().coord(&Axis::Time), Coord::Time(TimeMotion::Moment(50.)));
+        assert_eq!(bbox_r.max_corner().coord(&Axis::X), Coord::XY(69.));
+        assert_eq!(bbox_r.max_corner().coord(&Axis::Y), Coord::XY(103.));
+        assert_eq!(bbox_r.max_corner().coord(&Axis::Time), Coord::Time(TimeMotion::Stop(50.)));
+    }
 }
