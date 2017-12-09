@@ -183,8 +183,8 @@ impl kdtree::Shape for MotionShape {
                     assert!(cut_time <= fragment.max.time);
                     if speed_y < 0. {
                         // movement to the top
-                        let cut_y_l = self.src_bbox.rb.y.y + speed_y * move_time;
-                        let cut_y_r = self.src_bbox.lt.y.y + speed_y * move_time;
+                        let cut_y_l = (self.src_bbox.rb.y.y + speed_y * move_time).min(fragment.max.p2d.y.y);
+                        let cut_y_r = (self.src_bbox.lt.y.y + speed_y * move_time).max(fragment.min.p2d.y.y);
                         let bbox_l = BoundingBox {
                             min: Point {
                                 p2d: fragment.min.p2d,
@@ -208,8 +208,8 @@ impl kdtree::Shape for MotionShape {
                         Some((bbox_l, bbox_r))
                     } else {
                         // movement to the bottom
-                        let cut_y_l = self.src_bbox.lt.y.y + speed_y * move_time;
-                        let cut_y_r = self.src_bbox.rb.y.y + speed_y * move_time;
+                        let cut_y_l = (self.src_bbox.lt.y.y + speed_y * move_time).max(fragment.min.p2d.y.y);
+                        let cut_y_r = (self.src_bbox.rb.y.y + speed_y * move_time).min(fragment.max.p2d.y.y);
                         let bbox_l = BoundingBox {
                             min: Point {
                                 p2d: geom::Point { x: fragment.min.p2d.x, y: geom::axis_y(cut_y_l), },
@@ -243,8 +243,8 @@ impl kdtree::Shape for MotionShape {
                     assert!(cut_time <= fragment.max.time);
                     if speed_y < 0. {
                         // movement to the top
-                        let cut_y_l = self.src_bbox.lt.y.y + speed_y * move_time;
-                        let cut_y_r = self.src_bbox.rb.y.y + speed_y * move_time;
+                        let cut_y_l = (self.src_bbox.lt.y.y + speed_y * move_time).max(fragment.min.p2d.y.y);
+                        let cut_y_r = (self.src_bbox.rb.y.y + speed_y * move_time).min(fragment.max.p2d.y.y);
                         let bbox_l = BoundingBox {
                             min: Point {
                                 p2d: geom::Point { x: fragment.min.p2d.x, y: geom::axis_y(cut_y_l), },
@@ -268,8 +268,8 @@ impl kdtree::Shape for MotionShape {
                         Some((bbox_l, bbox_r))
                     } else {
                         // movement to the bottom
-                        let cut_y_l = self.src_bbox.rb.y.y + speed_y * move_time;
-                        let cut_y_r = self.src_bbox.lt.y.y + speed_y * move_time;
+                        let cut_y_l = (self.src_bbox.rb.y.y + speed_y * move_time).min(fragment.max.p2d.y.y);
+                        let cut_y_r = (self.src_bbox.lt.y.y + speed_y * move_time).max(fragment.min.p2d.y.y);
 
                         println!(" ;; cut_y_l: {}, cut_y_r: {}", cut_y_l, cut_y_r);
 
@@ -327,8 +327,8 @@ impl kdtree::Shape for MotionShape {
                     assert!(cut_time <= fragment.max.time);
                     if speed_x < 0. {
                         // movement to the left
-                        let cut_x_l = self.src_bbox.rb.x.x + speed_x * move_time;
-                        let cut_x_r = self.src_bbox.lt.x.x + speed_x * move_time;
+                        let cut_x_l = (self.src_bbox.rb.x.x + speed_x * move_time).min(fragment.max.p2d.x.x);
+                        let cut_x_r = (self.src_bbox.lt.x.x + speed_x * move_time).max(fragment.min.p2d.x.x);
                         let bbox_l = BoundingBox {
                             min: Point {
                                 p2d: fragment.min.p2d,
@@ -352,8 +352,8 @@ impl kdtree::Shape for MotionShape {
                         Some((bbox_l, bbox_r))
                     } else {
                         // movement to the right
-                        let cut_x_l = self.src_bbox.lt.x.x + speed_x * move_time;
-                        let cut_x_r = self.src_bbox.rb.x.x + speed_x * move_time;
+                        let cut_x_l = (self.src_bbox.lt.x.x + speed_x * move_time).max(fragment.min.p2d.x.x);
+                        let cut_x_r = (self.src_bbox.rb.x.x + speed_x * move_time).min(fragment.max.p2d.x.x);
                         let bbox_l = BoundingBox {
                             min: Point {
                                 p2d: geom::Point { x: fragment.min.p2d.x, y: geom::axis_y(cut_y), },
@@ -379,13 +379,16 @@ impl kdtree::Shape for MotionShape {
                 } else {
                     // movement to the bottom
                     let move_time = (cut_y - self.src_bbox.lt.y.y) / speed_y;
+
+                    println!(" ;; cut_y = {}, bbox.lt.y = {}, speed_y = {}", cut_y, self.src_bbox.lt.y.y, speed_y);
+
                     let cut_time = TimeMotion::Moment(move_time);
                     assert!(cut_time >= fragment.min.time);
                     assert!(cut_time <= fragment.max.time);
                     if speed_x < 0. {
                         // movement to the left
-                        let cut_x_l = self.src_bbox.lt.x.x + speed_x * move_time;
-                        let cut_x_r = self.src_bbox.rb.x.x + speed_x * move_time;
+                        let cut_x_l = (self.src_bbox.lt.x.x + speed_x * move_time).max(fragment.min.p2d.x.x);
+                        let cut_x_r = (self.src_bbox.rb.x.x + speed_x * move_time).min(fragment.max.p2d.x.x);
                         let bbox_l = BoundingBox {
                             min: Point {
                                 p2d: geom::Point { x: fragment.min.p2d.x, y: geom::axis_y(cut_y), },
@@ -409,8 +412,11 @@ impl kdtree::Shape for MotionShape {
                         Some((bbox_l, bbox_r))
                     } else {
                         // movement to the right
-                        let cut_x_l = self.src_bbox.rb.x.x + speed_x * move_time;
-                        let cut_x_r = self.src_bbox.lt.x.x + speed_x * move_time;
+                        let cut_x_l = (self.src_bbox.rb.x.x + speed_x * move_time).min(fragment.max.p2d.x.x);
+                        let cut_x_r = (self.src_bbox.lt.x.x + speed_x * move_time).max(fragment.min.p2d.x.x);
+
+                        println!(" ;; cut_x_l: {}, cut_x_r: {}", cut_x_l, cut_x_r);
+
                         let bbox_l = BoundingBox {
                             min: Point {
                                 p2d: fragment.min.p2d,
@@ -602,5 +608,31 @@ mod test {
         assert_eq!(bbox_r.max_corner().coord(&Axis::X), Coord::XY(69.));
         assert_eq!(bbox_r.max_corner().coord(&Axis::Y), Coord::XY(103.));
         assert_eq!(bbox_r.max_corner().coord(&Axis::Time), Coord::Time(TimeMotion::Stop(25.)));
+        let (bbox_ll, bbox_lr) = shape.cut(&bbox_l, &Axis::Y, &Coord::XY(67.)).unwrap();
+        assert_eq!(bbox_ll.min_corner().coord(&Axis::X), Coord::XY(45.));
+        assert_eq!(bbox_ll.min_corner().coord(&Axis::Y), Coord::XY(45.));
+        assert_eq!(bbox_ll.min_corner().coord(&Axis::Time), Coord::Time(TimeMotion::Moment(0.)));
+        assert_eq!(bbox_ll.max_corner().coord(&Axis::X), Coord::XY(57.));
+        assert_eq!(bbox_ll.max_corner().coord(&Axis::Y), Coord::XY(67.));
+        assert_eq!(bbox_ll.max_corner().coord(&Axis::Time), Coord::Time(TimeMotion::Moment(11.458333333333334)));
+        assert_eq!(bbox_lr.min_corner().coord(&Axis::X), Coord::XY(51.41666666666667));
+        assert_eq!(bbox_lr.min_corner().coord(&Axis::Y), Coord::XY(67.));
+        assert_eq!(bbox_lr.min_corner().coord(&Axis::Time), Coord::Time(TimeMotion::Moment(11.458333333333334)));
+        assert_eq!(bbox_lr.max_corner().coord(&Axis::X), Coord::XY(57.));
+        assert_eq!(bbox_lr.max_corner().coord(&Axis::Y), Coord::XY(96.14285714285714));
+        assert_eq!(bbox_lr.max_corner().coord(&Axis::Time), Coord::Time(TimeMotion::Moment(21.428571428571427)));
+        let (bbox_lrl, bbox_lrr) = shape.cut(&bbox_lr, &Axis::Time, &Coord::Time(TimeMotion::Moment(16.))).unwrap();
+        assert_eq!(bbox_lrl.min_corner().coord(&Axis::X), Coord::XY(51.41666666666667));
+        assert_eq!(bbox_lrl.min_corner().coord(&Axis::Y), Coord::XY(67.));
+        assert_eq!(bbox_lrl.min_corner().coord(&Axis::Time), Coord::Time(TimeMotion::Moment(11.458333333333334)));
+        assert_eq!(bbox_lrl.max_corner().coord(&Axis::X), Coord::XY(57.));
+        assert_eq!(bbox_lrl.max_corner().coord(&Axis::Y), Coord::XY(96.14285714285714));
+        assert_eq!(bbox_lrl.max_corner().coord(&Axis::Time), Coord::Time(TimeMotion::Moment(16.)));
+        assert_eq!(bbox_lrr.min_corner().coord(&Axis::X), Coord::XY(51.41666666666667));
+        assert_eq!(bbox_lrr.min_corner().coord(&Axis::Y), Coord::XY(67.));
+        assert_eq!(bbox_lrr.min_corner().coord(&Axis::Time), Coord::Time(TimeMotion::Moment(16.)));
+        assert_eq!(bbox_lrr.max_corner().coord(&Axis::X), Coord::XY(57.));
+        assert_eq!(bbox_lrr.max_corner().coord(&Axis::Y), Coord::XY(96.14285714285714));
+        assert_eq!(bbox_lrr.max_corner().coord(&Axis::Time), Coord::Time(TimeMotion::Moment(21.428571428571427)));
     }
 }
