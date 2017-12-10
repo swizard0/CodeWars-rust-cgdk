@@ -673,17 +673,17 @@ impl kdtree::Shape for MotionShape {
 
     fn cut(&self, fragment: &BoundingBox, cut_axis: &Axis, cut_coord: &Coord) -> Option<(BoundingBox, BoundingBox)> {
 
-        println!(" ;; self.route_stats: {:?}", self.route_stats);
-        println!(" ;; self.src_bbox: {:?}", self.src_bbox);
-        println!(" ;; fragment: {:?}", fragment);
-        println!(" ;; cut_axis: {:?}", cut_axis);
-        println!(" ;; cut_coord: {:?}", cut_coord);
+        // println!(" ;; self.route_stats: {:?}", self.route_stats);
+        // println!(" ;; self.src_bbox: {:?}", self.src_bbox);
+        // println!(" ;; fragment: {:?}", fragment);
+        // println!(" ;; cut_axis: {:?}", cut_axis);
+        // println!(" ;; cut_coord: {:?}", cut_coord);
 
         if let Some((left_bbox, right_bbox)) = self.cut_fragment(fragment, cut_axis, cut_coord) {
 
-            println!(" ;; => L: {:?}", left_bbox);
-            println!(" ;; => R: {:?}", right_bbox);
-            println!("");
+            // println!(" ;; => L: {:?}", left_bbox);
+            // println!(" ;; => R: {:?}", right_bbox);
+            // println!("");
 
             assert!(left_bbox.min.p2d.x >= self.bounding_box.min.p2d.x);
             assert!(left_bbox.min.p2d.y >= self.bounding_box.min.p2d.y);
@@ -696,8 +696,8 @@ impl kdtree::Shape for MotionShape {
             Some((left_bbox, right_bbox))
         } else {
 
-            println!(" ;; => NO CUT");
-            println!("");
+            // println!(" ;; => NO CUT");
+            // println!("");
 
             None
         }
@@ -943,19 +943,19 @@ mod test {
                     src: geom::Point { x: geom::axis_x(50.), y: geom::axis_y(50.), },
                     dst: geom::Point { x: geom::axis_x(20.), y: geom::axis_y(50.), },
                 }, 2.)),
-                Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 1., },
+                Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 5., },
             ),
-            // MotionShape::new(
-            //     geom::Rect {
-            //         lt: geom::Point { x: geom::axis_x(5.), y: geom::axis_y(25.), },
-            //         rb: geom::Point { x: geom::axis_x(5.), y: geom::axis_y(25.), },
-            //     },
-            //     Some((geom::Segment {
-            //         src: geom::Point { x: geom::axis_x(15.), y: geom::axis_y(15.), },
-            //         dst: geom::Point { x: geom::axis_x(29.), y: geom::axis_y(63.), },
-            //     }, 5.)),
-            //     Limits { x_min_diff: 10., y_min_diff: 10., time_min_diff: 2.5, },
-            // ),
+            MotionShape::new(
+                geom::Rect {
+                    lt: geom::Point { x: geom::axis_x(5.), y: geom::axis_y(25.), },
+                    rb: geom::Point { x: geom::axis_x(5.), y: geom::axis_y(25.), },
+                },
+                Some((geom::Segment {
+                    src: geom::Point { x: geom::axis_x(15.), y: geom::axis_y(15.), },
+                    dst: geom::Point { x: geom::axis_x(29.), y: geom::axis_y(63.), },
+                }, 5.)),
+                Limits { x_min_diff: 10., y_min_diff: 10., time_min_diff: 2.5, },
+            ),
         ];
         let tree = kdtree::KdvTree::build(Some(Axis::X).into_iter().chain(Some(Axis::Y).into_iter()).chain(Some(Axis::Time)), shapes).unwrap();
         let intersects: Vec<_> = tree
@@ -967,25 +967,11 @@ mod test {
                 Some((geom::Segment {
                     src: geom::Point { x: geom::axis_x(40.), y: geom::axis_y(30.), },
                     dst: geom::Point { x: geom::axis_x(40.), y: geom::axis_y(80.), },
-                }, 0.1)),
+                }, 1.)),
                 Limits { x_min_diff: 2., y_min_diff: 2., time_min_diff: 2., },
             ))
-            .map(|(_shape, bbox)| bbox)
+            .map(|intersection| (intersection.shape_fragment, intersection.needle_fragment))
             .collect();
-        panic!("{:?}", intersects);
-
-        // [
-        //     BoundingBox {
-        //         min: Point { p2d: Point { x: AxisX { x: 29.25 }, y: AxisY { y: 52.5 } }, time: Moment(6.4375) },
-        //         max: Point { p2d: Point { x: AxisX { x: 42.125 }, y: AxisY { y: 55 } }, time: Moment(7.875) }
-        //     }
-        // ]
-
-        // [
-        //     BoundingBox {
-        //         min: Point { p2d: Point { x: AxisX { x: 31.375 }, y: AxisY { y: 45 } }, time: Moment(7.875) },
-        //         max: Point { p2d: Point { x: AxisX { x: 39.25 }, y: AxisY { y: 47.5 } }, time: Moment(11.8125) }
-        //     }
-        // ]
+        assert_eq!(intersects, vec![]);
     }
 }

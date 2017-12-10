@@ -64,15 +64,17 @@ impl<P, B, S> KdvTree<P, B, S>
         }
     }
 
-    pub fn intersects<'t, 's, SQ>(&'t self, shape: &'s SQ) -> IntersectIter<'t, 's, P::Axis, P::Coord, B, S, SQ>
-        where SQ: Shape<BoundingBox = B>
+    pub fn intersects<'t, 's, SN>(&'t self, shape: &'s SN) -> IntersectIter<'t, 's, P::Axis, P::Coord, S, B, SN, SN::BoundingBox>
+        where SN: Shape<BoundingBox = S::BoundingBox>
     {
         IntersectIter {
             needle: shape,
             axis: &self.axis,
             shapes: &self.shapes,
-            queue: vec![(&self.root, shape.bounding_box())],
-            iter: None,
+            queue: vec![TraverseTask::Explore {
+                node: &self.root,
+                needle_fragment: shape.bounding_box(),
+            }],
         }
     }
 }
@@ -182,105 +184,126 @@ fn shape_owner<A, C, B, S>(shape: &S, fragment: B, cut_axis: &A, cut_coord: &C) 
     }
 }
 
-pub struct IntersectIter<'t, 's, A: 't, C: 't, B: 't, ST: 't, SQ: 's> {
-    needle: &'s SQ,
-    axis: &'t [A],
-    shapes: &'t [ST],
-    queue: Vec<(&'t KdvNode<A, C, B>, B)>,
-    iter: Option<(ShapeOwner<B>, (Option<&'t KdvNode<A, C, B>>, Option<&'t KdvNode<A, C, B>>), ::std::slice::Iter<'t, ShapeFragment<B>>)>,
+enum TraverseTask<'t, A: 't, C: 't, BS: 't, BN> {
+    Explore { node: &'t KdvNode<A, C, BS>, needle_fragment: BN, },
+    Intersect { needle_fragment: BN, shape_fragment: &'t ShapeFragment<BS>, axis_counter: usize, },
 }
 
-impl<'t, 's, A, C, B, ST, SQ> Iterator for IntersectIter<'t, 's, A, C, B, ST, SQ>
+pub struct IntersectIter<'t, 's, A: 't, C: 't, SS: 't, BS: 't, SN: 's, BN> {
+    needle: &'s SN,
+    axis: &'t [A],
+    shapes: &'t [SS],
+    queue: Vec<TraverseTask<'t, A, C, BS, BN>>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct Intersection<'t, SS: 't, BS: 't, BN> {
+    pub shape: &'t SS,
+    pub shape_fragment: &'t BS,
+    pub needle_fragment: BN,
+}
+
+impl<'t, 's, A, C, SS, BS, SN, BN> Iterator for IntersectIter<'t, 's, A, C, SS, BS, SN, BN>
     where A: Clone,
           C: Coord,
-          B: BoundingBox + Clone,
-          B::Point: Point<Axis = A, Coord = C>,
-          ST: Shape<BoundingBox = B>,
-          SQ: Shape<BoundingBox = B>,
+          SS: Shape<BoundingBox = BS>,
+          BS: BoundingBox,
+          BS::Point: Point<Axis = A, Coord = C>,
+          SN: Shape<BoundingBox = BN>,
+          BN: BoundingBox<Point = BS::Point> + Clone,
 {
-    type Item = (&'t ST, &'t B);
+    type Item = Intersection<'t, SS, BS, BN>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if let Some((needle_owner, children, mut it)) = self.iter.take() {
-                while let Some(sf) = it.next() {
-                    let no_intersection = {
-                        let mut needles_it = match needle_owner {
-                            ShapeOwner::Me(ref bbox) | ShapeOwner::Left(ref bbox) | ShapeOwner::Right(ref bbox) =>
-                                Some(bbox).into_iter().chain(None.into_iter()),
-                            ShapeOwner::Both { ref left_bbox, ref right_bbox, } =>
-                                Some(left_bbox).into_iter().chain(Some(right_bbox).into_iter()),
-                        };
-                        needles_it
-                            .all(|needle_fragment| {
-                                self.axis
-                                    .iter()
-                                    .any(|axis| {
-                                        let needle_min = needle_fragment.min_corner().coord(axis);
-                                        let needle_max = needle_fragment.max_corner().coord(axis);
-                                        let shape_min = sf.bounding_box.min_corner().coord(axis);
-                                        let shape_max = sf.bounding_box.max_corner().coord(axis);
-                                        needle_min > shape_max || needle_max < shape_min
-                                    })
-                            })
-                    };
+        'outer: while let Some(task) = self.queue.pop() {
+            match task {
+                TraverseTask::Explore { node, needle_fragment, } => {
+                    let needle_owner =
+                        shape_owner(self.needle, needle_fragment.clone(), &node.cut_axis, &node.cut_coord);
+                    fn schedule_explore<'t, A, C, BS, BN>(
+                        queue: &mut Vec<TraverseTask<'t, A, C, BS, BN>>,
+                        maybe_node: &'t Option<Box<KdvNode<A, C, BS>>>,
+                        fragment: BN,
+                    ) {
+                        if let &Some(ref node) = maybe_node {
+                            queue.push(TraverseTask::Explore {
+                                node: node.as_ref(),
+                                needle_fragment: fragment,
+                            });
+                        }
+                    }
+                    match needle_owner {
+                        ShapeOwner::Me(fragment) => {
+                            schedule_explore(&mut self.queue, &node.left, fragment.clone());
+                            schedule_explore(&mut self.queue, &node.right, fragment);
+                        },
+                        ShapeOwner::Left(fragment) =>
+                            schedule_explore(&mut self.queue, &node.left, fragment),
+                        ShapeOwner::Right(fragment) =>
+                            schedule_explore(&mut self.queue, &node.right, fragment),
+                        ShapeOwner::Both { left_bbox, right_bbox, } => {
+                            schedule_explore(&mut self.queue, &node.left, left_bbox);
+                            schedule_explore(&mut self.queue, &node.right, right_bbox);
+                        },
+                    }
+                    for shape_fragment in node.shapes.iter() {
+                        self.queue.push(TraverseTask::Intersect {
+                            shape_fragment,
+                            needle_fragment: needle_fragment.clone(),
+                            axis_counter: 0,
+                        });
+                    }
+                },
+                TraverseTask::Intersect { shape_fragment, needle_fragment, mut axis_counter, } => {
+                    let no_intersection = self.axis.iter().any(|axis| {
+                        let needle_min = needle_fragment.min_corner().coord(axis);
+                        let needle_max = needle_fragment.max_corner().coord(axis);
+                        let shape_min = shape_fragment.bounding_box.min_corner().coord(axis);
+                        let shape_max = shape_fragment.bounding_box.max_corner().coord(axis);
+                        needle_min > shape_max || needle_max < shape_min
+                    });
                     if no_intersection {
                         continue;
                     }
-                    let shape = &self.shapes[sf.shape_id];
-                    self.iter = Some((needle_owner, children, it));
-                    return Some((shape, &sf.bounding_box));
-                }
-                match (needle_owner, children) {
-                    (ShapeOwner::Me(fragment), (maybe_left, maybe_right)) => {
-                        if let Some(node) = maybe_left {
-                            self.queue.push((node, fragment.clone()));
+                    let axis_total = self.axis.len();
+                    for _ in 0 .. axis_total {
+                        let cut_axis = &self.axis[axis_counter % axis_total];
+                        let cut_coord = Coord::cut_point({
+                            let min_coord = needle_fragment.min_corner().coord(cut_axis);
+                            let max_coord = needle_fragment.max_corner().coord(cut_axis);
+                            Some(min_coord).into_iter().chain(Some(max_coord).into_iter())
+                        });
+                        if let Some((left_fragment, right_fragment)) = self.needle.cut(&needle_fragment, cut_axis, &cut_coord) {
+                            self.queue.push(TraverseTask::Intersect {
+                                shape_fragment: shape_fragment.clone(),
+                                needle_fragment: left_fragment,
+                                axis_counter,
+                            });
+                            self.queue.push(TraverseTask::Intersect {
+                                shape_fragment: shape_fragment,
+                                needle_fragment: right_fragment,
+                                axis_counter,
+                            });
+                            continue 'outer;
                         }
-                        if let Some(node) = maybe_right {
-                            self.queue.push((node, fragment));
-                        }
-                    },
-                    (ShapeOwner::Left(fragment), (maybe_left, _)) => {
-                        if let Some(node) = maybe_left {
-                            self.queue.push((node, fragment));
-                        }
-                    },
-                    (ShapeOwner::Right(fragment), (_, maybe_right)) => {
-                        if let Some(node) = maybe_right {
-                            self.queue.push((node, fragment));
-                        }
-                    },
-                    (ShapeOwner::Both { left_bbox, right_bbox, }, (maybe_left, maybe_right)) => {
-                        if let Some(node) = maybe_left {
-                            self.queue.push((node, left_bbox));
-                        }
-                        if let Some(node) = maybe_right {
-                            self.queue.push((node, right_bbox));
-                        }
-                    },
-                }
+                        axis_counter += 1;
+                    }
+                    return Some(Intersection {
+                        shape: &self.shapes[shape_fragment.shape_id],
+                        shape_fragment: &shape_fragment.bounding_box,
+                        needle_fragment,
+                    });
+                },
             }
-
-            if let Some((node, needle_fragment)) = self.queue.pop() {
-                let needle_owner =
-                    shape_owner(self.needle, needle_fragment, &node.cut_axis, &node.cut_coord);
-                self.iter = Some((
-                    needle_owner,
-                    (node.left.as_ref().map(|b| b.as_ref()), node.right.as_ref().map(|b| b.as_ref())),
-                    node.shapes.iter(),
-                ));
-                continue;
-            }
-
-            return None;
         }
+        None
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::cmp::{min, max};
-    use super::KdvTree;
+    use super::{KdvTree, Intersection};
 
     #[derive(PartialEq, PartialOrd, Debug)]
     struct Coord(i32);
@@ -367,28 +390,52 @@ mod tests {
         let intersects: Vec<_> = tree
             .intersects(&Line2d { src: Point2d { x: 16, y: 64, }, dst: Point2d { x: 80, y: 64, }, })
             .collect();
-        assert_eq!(intersects, [
-            (
-                &Line2d { src: Point2d { x: 16, y: 16 }, dst: Point2d { x: 80, y: 80 } },
-                &Rect2d { lt: Point2d { x: 64, y: 64 }, rb: Point2d { x: 72, y: 72 } },
-            ),
-            (
-                &Line2d { src: Point2d { x: 16, y: 16 }, dst: Point2d { x: 80, y: 80 } },
-                &Rect2d { lt: Point2d { x: 56, y: 56 }, rb: Point2d { x: 64, y: 64 } },
-            ),
+        assert_eq!(intersects, vec![
+            Intersection {
+                shape: &Line2d { src: Point2d { x: 16, y: 16 }, dst: Point2d { x: 80, y: 80 } },
+                shape_fragment: &Rect2d { lt: Point2d { x: 64, y: 64 }, rb: Point2d { x: 72, y: 72 } },
+                needle_fragment: Rect2d { lt: Point2d { x: 66, y: 64 }, rb: Point2d { x: 72, y: 64 } },
+            },
+            Intersection {
+                shape: &Line2d { src: Point2d { x: 16, y: 16 }, dst: Point2d { x: 80, y: 80 } },
+                shape_fragment: &Rect2d { lt: Point2d { x: 64, y: 64 }, rb: Point2d { x: 72, y: 72 } },
+                needle_fragment: Rect2d { lt: Point2d { x: 60, y: 64 }, rb: Point2d { x: 66, y: 64 } },
+            },
+            Intersection {
+                shape: &Line2d { src: Point2d { x: 16, y: 16 }, dst: Point2d { x: 80, y: 80 } },
+                shape_fragment: &Rect2d { lt: Point2d { x: 56, y: 56 }, rb: Point2d { x: 64, y: 64 } },
+                needle_fragment: Rect2d { lt: Point2d { x: 62, y: 64 }, rb: Point2d { x: 68, y: 64 } },
+            },
+            Intersection {
+                shape: &Line2d { src: Point2d { x: 16, y: 16 }, dst: Point2d { x: 80, y: 80 } },
+                shape_fragment: &Rect2d { lt: Point2d { x: 56, y: 56 }, rb: Point2d { x: 64, y: 64 } },
+                needle_fragment: Rect2d { lt: Point2d { x: 56, y: 64 }, rb: Point2d { x: 62, y: 64 } },
+            },
         ]);
         let intersects: Vec<_> = tree
             .intersects(&Line2d { src: Point2d { x: 64, y: 16, }, dst: Point2d { x: 64, y: 80, }, })
             .collect();
         assert_eq!(intersects, [
-            (
-                &Line2d { src: Point2d { x: 16, y: 16 }, dst: Point2d { x: 80, y: 80 } },
-                &Rect2d { lt: Point2d { x: 64, y: 64 }, rb: Point2d { x: 72, y: 72 } },
-            ),
-            (
-                &Line2d { src: Point2d { x: 16, y: 16 }, dst: Point2d { x: 80, y: 80 } },
-                &Rect2d { lt: Point2d { x: 56, y: 56 }, rb: Point2d { x: 64, y: 64 } },
-            ),
+            Intersection {
+                shape: &Line2d { src: Point2d { x: 16, y: 16 }, dst: Point2d { x: 80, y: 80 } },
+                shape_fragment: &Rect2d { lt: Point2d { x: 64, y: 64 }, rb: Point2d { x: 72, y: 72 } },
+                needle_fragment: Rect2d { lt: Point2d { x: 64, y: 72 }, rb: Point2d { x: 64, y: 80 } },
+            },
+            Intersection {
+                shape: &Line2d { src: Point2d { x: 16, y: 16 }, dst: Point2d { x: 80, y: 80 } },
+                shape_fragment: &Rect2d { lt: Point2d { x: 64, y: 64 }, rb: Point2d { x: 72, y: 72 } },
+                needle_fragment: Rect2d { lt: Point2d { x: 64, y: 64 }, rb: Point2d { x: 64, y: 72 } },
+            },
+            Intersection {
+                shape: &Line2d { src: Point2d { x: 16, y: 16 }, dst: Point2d { x: 80, y: 80 } },
+                shape_fragment: &Rect2d { lt: Point2d { x: 56, y: 56 }, rb: Point2d { x: 64, y: 64 } },
+                needle_fragment: Rect2d { lt: Point2d { x: 64, y: 58 }, rb: Point2d { x: 64, y: 64 } },
+            },
+            Intersection {
+                shape: &Line2d { src: Point2d { x: 16, y: 16 }, dst: Point2d { x: 80, y: 80 } },
+                shape_fragment: &Rect2d { lt: Point2d { x: 56, y: 56 }, rb: Point2d { x: 64, y: 64 } },
+                needle_fragment: Rect2d { lt: Point2d { x: 64, y: 52 }, rb: Point2d { x: 64, y: 58 } },
+            },
         ]);
     }
 
@@ -407,27 +454,36 @@ mod tests {
             .intersects(&Line2d { src: Point2d { x: 8, y: 48, }, dst: Point2d { x: 88, y: 48, }, })
             .collect();
         assert_eq!(intersects, vec![
-            (
-                &Line2d { src: Point2d { x: 80, y: 16 }, dst: Point2d { x: 80, y: 80 } },
-                &Rect2d { lt: Point2d { x: 80, y: 44 }, rb: Point2d { x: 80, y: 69 } },
-            ),
-            (
-                &Line2d { src: Point2d { x: 16, y: 16 }, dst: Point2d { x: 80, y: 80 } },
-                &Rect2d { lt: Point2d { x: 42, y: 42 }, rb: Point2d { x: 50, y: 50 } },
-            ),
+            Intersection {
+                shape: &Line2d { src: Point2d { x: 80, y: 16 }, dst: Point2d { x: 80, y: 80 } },
+                shape_fragment: &Rect2d { lt: Point2d { x: 80, y: 44 }, rb: Point2d { x: 80, y: 69 } },
+                needle_fragment: Rect2d { lt: Point2d { x: 74, y: 48 }, rb: Point2d { x: 81, y: 48 } },
+            },
+            Intersection {
+                shape: &Line2d { src: Point2d { x: 16, y: 16 }, dst: Point2d { x: 80, y: 80 } },
+                shape_fragment: &Rect2d { lt: Point2d { x: 42, y: 42 }, rb: Point2d { x: 50, y: 50 } },
+                needle_fragment: Rect2d { lt: Point2d { x: 50, y: 48 }, rb: Point2d { x: 58, y: 48 } },
+            },
+            Intersection {
+                shape: &Line2d { src: Point2d { x: 16, y: 16 }, dst: Point2d { x: 80, y: 80 } },
+                shape_fragment: &Rect2d { lt: Point2d { x: 42, y: 42 }, rb: Point2d { x: 50, y: 50 } },
+                needle_fragment: Rect2d { lt: Point2d { x: 42, y: 48 }, rb: Point2d { x: 50, y: 48 } },
+            },
         ]);
         let intersects: Vec<_> = tree
             .intersects(&Line2d { src: Point2d { x: 40, y: 10, }, dst: Point2d { x: 90, y: 60, }, })
             .collect();
         assert_eq!(intersects, vec![
-            (
-                &Line2d { src: Point2d { x: 80, y: 16 }, dst: Point2d { x: 80, y: 80 } },
-                &Rect2d { lt: Point2d { x: 80, y: 44 }, rb: Point2d { x: 80, y: 69 } },
-            ),
-            (
-                &Line2d { src: Point2d { x: 16, y: 16 }, dst: Point2d { x: 80, y: 16 } },
-                &Rect2d { lt: Point2d { x: 29, y: 16 }, rb: Point2d { x: 58, y: 16 } },
-            )
+            Intersection {
+                shape: &Line2d { src: Point2d { x: 80, y: 16 }, dst: Point2d { x: 80, y: 80 } },
+                shape_fragment: &Rect2d { lt: Point2d { x: 80, y: 44 }, rb: Point2d { x: 80, y: 69 } },
+                needle_fragment: Rect2d { lt: Point2d { x: 74, y: 44 }, rb: Point2d { x: 82, y: 52 } },
+            },
+            Intersection {
+                shape: &Line2d { src: Point2d { x: 16, y: 16 }, dst: Point2d { x: 80, y: 16 } },
+                shape_fragment: &Rect2d { lt: Point2d { x: 29, y: 16 }, rb: Point2d { x: 58, y: 16 } },
+                needle_fragment: Rect2d { lt: Point2d { x: 40, y: 10 }, rb: Point2d { x: 48, y: 18 } },
+            },
         ]);
     }
 }
