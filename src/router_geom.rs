@@ -932,7 +932,7 @@ mod test {
                     src: geom::Point { x: geom::axis_x(50.), y: geom::axis_y(50.), },
                     dst: geom::Point { x: geom::axis_x(20.), y: geom::axis_y(50.), },
                 }, 2.)),
-                Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 5., },
+                Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 1., },
             ),
             MotionShape::new(
                 geom::Rect {
@@ -943,10 +943,38 @@ mod test {
                     src: geom::Point { x: geom::axis_x(15.), y: geom::axis_y(15.), },
                     dst: geom::Point { x: geom::axis_x(29.), y: geom::axis_y(63.), },
                 }, 5.)),
-                Limits { x_min_diff: 10., y_min_diff: 10., time_min_diff: 5., },
+                Limits { x_min_diff: 10., y_min_diff: 10., time_min_diff: 2.5, },
             ),
         ];
         let tree = kdtree::KdvTree::build(Some(Axis::X).into_iter().chain(Some(Axis::Y).into_iter()).chain(Some(Axis::Time)), shapes).unwrap();
+        let intersects: Vec<_> = tree
+            .intersects(&MotionShape::new(
+                geom::Rect {
+                    lt: geom::Point { x: geom::axis_x(38.), y: geom::axis_y(28.), },
+                    rb: geom::Point { x: geom::axis_x(42.), y: geom::axis_y(32.), },
+                },
+                Some((geom::Segment {
+                    src: geom::Point { x: geom::axis_x(40.), y: geom::axis_y(30.), },
+                    dst: geom::Point { x: geom::axis_x(40.), y: geom::axis_y(80.), },
+                }, 0.1)),
+                Limits { x_min_diff: 2., y_min_diff: 2., time_min_diff: 2., },
+            ))
+            .map(|(_shape, bbox)| bbox)
+            .collect();
+        panic!("{:?}", intersects);
 
+        // [
+        //     BoundingBox {
+        //         min: Point { p2d: Point { x: AxisX { x: 29.25 }, y: AxisY { y: 52.5 } }, time: Moment(6.4375) },
+        //         max: Point { p2d: Point { x: AxisX { x: 42.125 }, y: AxisY { y: 55 } }, time: Moment(7.875) }
+        //     }
+        // ]
+
+        // [
+        //     BoundingBox {
+        //         min: Point { p2d: Point { x: AxisX { x: 31.375 }, y: AxisY { y: 45 } }, time: Moment(7.875) },
+        //         max: Point { p2d: Point { x: AxisX { x: 39.25 }, y: AxisY { y: 47.5 } }, time: Moment(11.8125) }
+        //     }
+        // ]
     }
 }
