@@ -943,7 +943,7 @@ mod test {
                     src: geom::Point { x: geom::axis_x(50.), y: geom::axis_y(50.), },
                     dst: geom::Point { x: geom::axis_x(20.), y: geom::axis_y(50.), },
                 }, 2.)),
-                Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 5., },
+                Limits { x_min_diff: 6., y_min_diff: 6., time_min_diff: 5., },
             ),
             MotionShape::new(
                 geom::Rect {
@@ -968,7 +968,7 @@ mod test {
                     src: geom::Point { x: geom::axis_x(40.), y: geom::axis_y(30.), },
                     dst: geom::Point { x: geom::axis_x(40.), y: geom::axis_y(80.), },
                 }, 1.)),
-                Limits { x_min_diff: 2., y_min_diff: 2., time_min_diff: 2., },
+                Limits { x_min_diff: 3., y_min_diff: 3., time_min_diff: 10., },
             ))
             .map(|intersection| (intersection.shape_fragment, intersection.needle_fragment))
             .collect();
