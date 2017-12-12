@@ -94,8 +94,8 @@ impl kdtree::Coord for Coord {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Point {
-    p2d: geom::Point,
-    time: TimeMotion,
+    pub p2d: geom::Point,
+    pub time: TimeMotion,
 }
 
 impl kdtree::Point for Point {
