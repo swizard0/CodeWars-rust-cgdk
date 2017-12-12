@@ -377,7 +377,7 @@ mod tests {
     #[test]
     fn kdv_tree_basic() {
         let shapes = vec![Line2d { src: Point2d { x: 16, y: 16, }, dst: Point2d { x: 80, y: 80, }, }];
-        let tree = KdvTree::build(Some(Axis::X).into_iter().chain(Some(Axis::Y).into_iter()), shapes).unwrap();
+        let tree = KdvTree::build(Some(Axis::X).into_iter().chain(Some(Axis::Y).into_iter()), shapes);
 
         assert_eq!(tree.intersects(&Line2d { src: Point2d { x: 116, y: 116, }, dst: Point2d { x: 180, y: 180, }, }).collect::<Vec<_>>(), vec![]);
         assert_eq!(tree.intersects(&Line2d { src: Point2d { x: 32, y: 48, }, dst: Point2d { x: 48, y: 64, }, }).collect::<Vec<_>>(), vec![]);
@@ -442,7 +442,7 @@ mod tests {
             Line2d { src: Point2d { x: 16, y: 16, }, dst: Point2d { x: 80, y: 80, }, },
             Line2d { src: Point2d { x: 80, y: 16, }, dst: Point2d { x: 80, y: 80, }, },
         ];
-        let tree = KdvTree::build(Some(Axis::X).into_iter().chain(Some(Axis::Y).into_iter()), shapes).unwrap();
+        let tree = KdvTree::build(Some(Axis::X).into_iter().chain(Some(Axis::Y).into_iter()), shapes);
 
         assert_eq!(tree.intersects(&Line2d { src: Point2d { x: 70, y: 45, }, dst: Point2d { x: 75, y: 50, }, }).collect::<Vec<_>>(), vec![]);
 

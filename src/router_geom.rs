@@ -961,7 +961,7 @@ mod test {
                 Limits { x_min_diff: 10., y_min_diff: 10., time_min_diff: 2.5, },
             ),
         ];
-        let tree = kdtree::KdvTree::build(Some(Axis::X).into_iter().chain(Some(Axis::Y).into_iter()).chain(Some(Axis::Time)), shapes).unwrap();
+        let tree = kdtree::KdvTree::build(Some(Axis::X).into_iter().chain(Some(Axis::Y).into_iter()).chain(Some(Axis::Time)), shapes);
         let intersects: Vec<_> = tree
             .intersects(&MotionShape::new(
                 geom::Rect {
@@ -971,6 +971,22 @@ mod test {
                 Some((geom::Segment {
                     src: geom::Point { x: geom::axis_x(40.), y: geom::axis_y(30.), },
                     dst: geom::Point { x: geom::axis_x(40.), y: geom::axis_y(80.), },
+                }, 1.)),
+                Limits { x_min_diff: 3., y_min_diff: 3., time_min_diff: 10., },
+            ))
+            .map(|intersection| (intersection.shape_fragment, intersection.needle_fragment))
+            .collect();
+        assert_eq!(intersects, vec![]);
+
+        let intersects: Vec<_> = tree
+            .intersects(&MotionShape::new(
+                geom::Rect {
+                    lt: geom::Point { x: geom::axis_x(65.), y: geom::axis_y(45.), },
+                    rb: geom::Point { x: geom::axis_x(75.), y: geom::axis_y(55.), },
+                },
+                Some((geom::Segment {
+                    src: geom::Point { x: geom::axis_x(70.), y: geom::axis_y(50.), },
+                    dst: geom::Point { x: geom::axis_x(40.), y: geom::axis_y(50.), },
                 }, 1.)),
                 Limits { x_min_diff: 3., y_min_diff: 3., time_min_diff: 10., },
             ))
