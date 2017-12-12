@@ -5,7 +5,7 @@ use super::geom;
 #[derive(Clone, Debug)]
 pub enum Axis { X, Y, Time, }
 
-#[derive(PartialEq, PartialOrd, Debug)]
+#[derive(Clone, PartialEq, PartialOrd, Debug)]
 pub enum Coord {
     XY(f64),
     Time(TimeMotion),
@@ -132,6 +132,7 @@ impl kdtree::BoundingBox for BoundingBox {
     }
 }
 
+#[derive(Clone, PartialEq, Debug)]
 pub struct Limits {
     pub x_min_diff: f64,
     pub y_min_diff: f64,
@@ -197,6 +198,8 @@ impl MotionShape {
             (&Axis::Y, _, _) if fragment.max.p2d.y.y - fragment.min.p2d.y.y < self.limits.y_min_diff =>
                 return None,
             (&Axis::Time, TimeMotion::Moment(tmin), TimeMotion::Moment(tmax)) if tmax - tmin < self.limits.time_min_diff =>
+                return None,
+            (&Axis::Time, TimeMotion::Moment(tmin), TimeMotion::Stop(tmax)) if tmax - tmin < self.limits.time_min_diff =>
                 return None,
             _ =>
                 (),
@@ -754,7 +757,7 @@ mod test {
         let shape = MotionShape::new(geom::Rect {
             lt: geom::Point { x: geom::axis_x(45.), y: geom::axis_y(45.), },
             rb: geom::Point { x: geom::axis_x(55.), y: geom::axis_y(55.), },
-        }, None, Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 5., });
+        }, None, Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 0., });
         let (bbox_l, bbox_r) = shape.cut(&shape.bounding_box(), &Axis::X, &Coord::XY(47.)).unwrap();
         assert_eq!(bbox_l.min_corner().coord(&Axis::X), Coord::XY(45.));
         assert_eq!(bbox_l.min_corner().coord(&Axis::Y), Coord::XY(45.));
