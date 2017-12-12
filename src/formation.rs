@@ -155,6 +155,10 @@ impl<'a> FormationRef<'a> {
         &mut self.form.current_plan
     }
 
+    pub fn current_route(&mut self) -> &mut Option<Vec<Point>> {
+        &mut self.form.current_route
+    }
+
     pub fn random_vehicle_id<R>(&self, rng: &mut R) -> i64 where R: Rng {
         rng.choose(&self.form.vehicles).cloned().unwrap()
     }
@@ -212,6 +216,7 @@ struct Formation {
     update_tick: i32,
     stuck: bool,
     current_plan: Option<Plan>,
+    current_route: Option<Vec<Point>>,
     dvt_s: Derivatives,
     dur_max: i32,
     dur_cur: i32,
@@ -232,6 +237,7 @@ impl Formation {
             update_tick: tick,
             stuck: false,
             current_plan: None,
+            current_route: None,
             dvt_s: Derivatives::new(),
             dur_max: 0,
             dur_cur: 0,

@@ -1,119 +1,101 @@
-use std::cmp::Ordering;
 use std::collections::{HashMap, BinaryHeap};
-use super::kdtree;
-use super::geom::{zero_epsilon, Point, Segment, Rect};
-
-pub trait RectUnit {
-    fn bounding_box(&self) -> Rect;
-    fn speed(&self) -> f64;
-    fn en_route(&self) -> Option<Segment>;
-}
+use super::super::model::Game;
+use super::formation::FormationRef;
+use super::{geom, kdtree, common};
+use super::router_geom::{Axis, Coord, TimeMotion, MotionShape, BoundingBox, Point, Limits};
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Route<'a> {
-    hops: &'a [Point],
+    hops: &'a [geom::Point],
     time: f64,
 }
 
-// pub struct Router<T> {
-//     qt_moving: QuadTree<CornerRoute>,
-//     qt_fixed: QuadTree<usize>,
-//     units: HashMap<usize, T>,
-// }
+pub struct Router {
+    space: kdtree::KdvTree<Point, BoundingBox, MotionShape>,
+}
 
-// struct CornerRoute {
-//     unit_id: usize,
-//     route: Segment,
-// }
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+struct BypassKind {
+    position: geom::Point,
+    obstacle: geom::Rect,
+}
 
-// #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-// struct BypassKind {
-//     unit_id: usize,
-//     unit_corner: usize,
-//     driven_corner: usize,
-// }
+#[derive(Debug)]
+enum Movement {
+    TowardsGoal,
+    Bypass(BypassKind),
+}
 
-// #[derive(Debug)]
-// enum Movement {
-//     TowardsGoal,
-//     Bypass { bypass_pos: Point, kind: BypassKind, },
-// }
+#[derive(Debug)]
+struct Step {
+    hops: usize,
+    movement: Movement,
+    goal_sq_dist: f64,
+    position: Point,
+    time: f64,
+    phead: usize,
+}
 
-// #[derive(Debug)]
-// struct Step {
-//     hops: usize,
-//     movement: Movement,
-//     goal_sq_dist: f64,
-//     position: Point,
-//     time: f64,
-//     phead: usize,
-// }
+enum Visit {
+    Visited,
+    NotYetVisited { hops: usize, goal_sq_dist: f64, },
+}
 
-// enum Visit {
-//     Visited,
-//     NotYetVisited { hops: usize, goal_sq_dist: f64, },
-// }
+pub struct RouterCache {
+    queue: BinaryHeap<Step>,
+    visited: HashMap<BypassKind, Visit>,
+    path_buf: Vec<(Point, usize)>,
+    path: Vec<Point>,
+}
 
-// pub struct RouterCache<'a> {
-//     queue: BinaryHeap<Step>,
-//     visited: HashMap<BypassKind, Visit>,
-//     path_buf: Vec<(Point, usize)>,
-//     path: Vec<Point>,
-//     qt_moving_cache: Vec<QuarterRectRef<'a, CornerRoute>>,
-//     qt_fixed_cache: Vec<QuarterRectRef<'a, usize>>,
-// }
+impl RouterCache {
+    pub fn new() -> RouterCache {
+        RouterCache {
+            queue: BinaryHeap::new(),
+            visited: HashMap::new(),
+            path_buf: Vec::new(),
+            path: Vec::new(),
+        }
+    }
 
-// impl<'a> RouterCache<'a> {
-//     pub fn new() -> RouterCache<'a> {
-//         RouterCache {
-//             queue: BinaryHeap::new(),
-//             visited: HashMap::new(),
-//             path_buf: Vec::new(),
-//             path: Vec::new(),
-//             qt_moving_cache: Vec::new(),
-//             qt_fixed_cache: Vec::new(),
-//         }
-//     }
+    pub fn clear(&mut self) {
+        self.queue.clear();
+        self.visited.clear();
+        self.path_buf.clear();
+        self.path.clear();
+    }
+}
 
-//     pub fn clear(&mut self) {
-//         self.queue.clear();
-//         self.visited.clear();
-//         self.path_buf.clear();
-//         self.path.clear();
-//         self.qt_moving_cache.clear();
-//         self.qt_fixed_cache.clear();
-//     }
-// }
+impl Router {
+    pub fn construct<'a, I>(game: &Game, formations_iter: I) -> Router where I: Iterator<Item = FormationRef<'a>> {
+        let moving_shapes_iter = formations_iter
+            .map(|mut form| {
+                let src_bbox = form.bounding_box().rect.clone();
+                let route = form.current_route()
+                    .as_ref()
+                    .and_then(|hops| {
+                        let mut hops_iter = hops.iter();
+                        if let (Some(&src), Some(&dst)) = (hops_iter.next(), hops_iter.next()) {
+                            Some(geom::Segment { src, dst, })
+                        } else {
+                            None
+                        }
+                    });
+                let speed = common::max_speed(game, form.kind());
+                let limits = Limits {
+                    x_min_diff: (src_bbox.rb.x - src_bbox.lt.x).x,
+                    y_min_diff: (src_bbox.rb.y - src_bbox.lt.y).y,
+                    time_min_diff: speed * 2.,
+                };
+                MotionShape::new(src_bbox, route.map(|path| (path, speed)), limits)
+            });
+        let space = kdtree::KdvTree::build(
+            Some(Axis::X).into_iter().chain(Some(Axis::Y).into_iter()).chain(Some(Axis::Time)),
+            moving_shapes_iter);
+        Router { space, }
+    }
 
-// impl<T> Router<T> where T: RectUnit {
-//     pub fn from_iter<I>(area: Rect, units_iter: I) -> Router<T> where I: Iterator<Item = T> {
-//         let mut counter = 0;
-//         let mut qt_moving = QuadTree::new(area.clone());
-//         let mut qt_fixed = QuadTree::new(area);
-//         let mut units = HashMap::new();
-//         for unit in units_iter {
-//             let bbox = unit.bounding_box();
-//             if let Some(route) = unit.en_route() {
-//                 // this is a moving unit: index corners trajectories
-//                 let routes = bbox.corners_translate(&route);
-//                 for seg in routes.iter() {
-//                     qt_moving.insert(&Rect { lt: seg.src, rb: seg.dst, }, CornerRoute {
-//                         unit_id: counter,
-//                         route: seg.clone(),
-//                     });
-//                 }
-//             } else {
-//                 // this is a fixed unit: index the bounding box
-//                 qt_fixed.insert(&bbox, counter);
-//             }
-//             units.insert(counter, unit);
-//             counter += 1;
-//         }
-
-//         Router { qt_moving, qt_fixed, units, }
-//     }
-
-//     pub fn route<'q, 'a: 'q>(&'a self, unit: &T, src: Point, dst: Point, cache: &'q mut RouterCache<'a>) -> Option<Route<'q>> {
+//     pub fn route<'q>(&'a self, unit: &T, src: Point, dst: Point, cache: &'q mut RouterCache<'a>) -> Option<Route<'q>> {
 //         cache.clear();
 //         cache.path_buf.push((src, 0));
 //         cache.queue.push(Step {
@@ -297,8 +279,9 @@ pub struct Route<'a> {
 //         }
 
 //         None
-//     }
-// }
+    //     unimplemented!()
+    // }
+}
 
 // fn gen_bypass<FU, FOX, FOY>(unit_rect: &Rect, up: FU, src: Point, obstacle_rect: &Rect, opx: FOX, opy: FOY) -> Point
 //     where FU: Fn(&Rect) -> Point,
@@ -319,54 +302,54 @@ pub struct Route<'a> {
 //     }
 // }
 
-// use std::cmp::Ordering;
+use std::cmp::Ordering;
 
-// impl Ord for Step {
-//     fn cmp(&self, other: &Step) -> Ordering {
-//         other.hops
-//             .cmp(&self.hops)
-//             .then_with(|| match (&self.movement, &other.movement) {
-//                 (&Movement::TowardsGoal, &Movement::TowardsGoal) | (&Movement::Bypass { .. }, &Movement::Bypass { .. }) =>
-//                     if self.goal_sq_dist < other.goal_sq_dist {
-//                         if zero_epsilon(other.goal_sq_dist - self.goal_sq_dist) {
-//                             Ordering::Equal
-//                         } else {
-//                             Ordering::Greater
-//                         }
-//                     } else if self.goal_sq_dist > other.goal_sq_dist {
-//                         if zero_epsilon(self.goal_sq_dist - other.goal_sq_dist) {
-//                             Ordering::Equal
-//                         } else {
-//                             Ordering::Less
-//                         }
-//                     } else {
-//                         Ordering::Equal
-//                     },
-//                 (&Movement::TowardsGoal, &Movement::Bypass { .. }) =>
-//                     Ordering::Greater,
-//                 (&Movement::Bypass { .. }, &Movement::TowardsGoal) =>
-//                     Ordering::Less,
-//             })
-//     }
-// }
+impl Ord for Step {
+    fn cmp(&self, other: &Step) -> Ordering {
+        other.hops
+            .cmp(&self.hops)
+            .then_with(|| match (&self.movement, &other.movement) {
+                (&Movement::TowardsGoal, &Movement::TowardsGoal) | (&Movement::Bypass { .. }, &Movement::Bypass { .. }) =>
+                    if self.goal_sq_dist < other.goal_sq_dist {
+                        if geom::zero_epsilon(other.goal_sq_dist - self.goal_sq_dist) {
+                            Ordering::Equal
+                        } else {
+                            Ordering::Greater
+                        }
+                    } else if self.goal_sq_dist > other.goal_sq_dist {
+                        if geom::zero_epsilon(self.goal_sq_dist - other.goal_sq_dist) {
+                            Ordering::Equal
+                        } else {
+                            Ordering::Less
+                        }
+                    } else {
+                        Ordering::Equal
+                    },
+                (&Movement::TowardsGoal, &Movement::Bypass { .. }) =>
+                    Ordering::Greater,
+                (&Movement::Bypass { .. }, &Movement::TowardsGoal) =>
+                    Ordering::Less,
+            })
+    }
+}
 
-// impl PartialOrd for Step {
-//     fn partial_cmp(&self, other: &Step) -> Option<Ordering> {
-//         Some(self.cmp(other))
-//     }
-// }
+impl PartialOrd for Step {
+    fn partial_cmp(&self, other: &Step) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
-// impl PartialEq for Step {
-//     fn eq(&self, other: &Step) -> bool {
-//         if let Ordering::Equal = self.cmp(other) {
-//             true
-//         } else {
-//             false
-//         }
-//     }
-// }
+impl PartialEq for Step {
+    fn eq(&self, other: &Step) -> bool {
+        if let Ordering::Equal = self.cmp(other) {
+            true
+        } else {
+            false
+        }
+    }
+}
 
-// impl Eq for Step {}
+impl Eq for Step {}
 
 
 // #[cfg(test)]

@@ -152,7 +152,11 @@ struct RouteStats {
 }
 
 impl MotionShape {
-    fn new(src_bbox: geom::Rect, en_route: Option<(geom::Segment, f64)>, limits: Limits) -> MotionShape {
+    pub fn new(src_bbox: geom::Rect, en_route: Option<(geom::Segment, f64)>, limits: Limits) -> MotionShape {
+        MotionShape::with_start(src_bbox, en_route, limits, 0.)
+    }
+
+    pub fn with_start(src_bbox: geom::Rect, en_route: Option<(geom::Segment, f64)>, limits: Limits, start_time: f64) -> MotionShape {
         let (min, max, route_stats) = if let Some((route, speed)) = en_route {
             let dst_bbox = src_bbox.translate(&route.to_vec());
             let dist = route.sq_dist().sqrt();
@@ -164,19 +168,19 @@ impl MotionShape {
                     x: geom::axis_x(src_bbox.lt.x.x.min(dst_bbox.lt.x.x)),
                     y: geom::axis_y(src_bbox.lt.y.y.min(dst_bbox.lt.y.y)),
                 },
-                time: TimeMotion::Moment(0.),
+                time: TimeMotion::Moment(start_time),
             };
             let max = Point {
                 p2d: geom::Point {
                     x: geom::axis_x(src_bbox.rb.x.x.max(dst_bbox.rb.x.x)),
                     y: geom::axis_y(src_bbox.rb.y.y.max(dst_bbox.rb.y.y)),
                 },
-                time: TimeMotion::Stop(dist / speed),
+                time: TimeMotion::Stop(start_time + (dist / speed)),
             };
             (min, max, Some(RouteStats { speed_x, speed_y, }))
         } else {
-            let min = Point { p2d: src_bbox.lt, time: TimeMotion::Moment(0.), };
-            let max = Point { p2d: src_bbox.rb, time: TimeMotion::Stop(0.), };
+            let min = Point { p2d: src_bbox.lt, time: TimeMotion::Moment(start_time), };
+            let max = Point { p2d: src_bbox.rb, time: TimeMotion::Stop(start_time), };
             (min, max, None)
         };
 

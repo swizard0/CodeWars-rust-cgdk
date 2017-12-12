@@ -1,12 +1,12 @@
-#[derive(Clone, Copy, PartialEq, PartialOrd, Default, Debug)]
+#[derive(Clone, Copy, PartialOrd, Default, Debug)]
 pub struct AxisX { pub x: f64, }
-#[derive(Clone, Copy, PartialEq, PartialOrd, Default, Debug)]
+#[derive(Clone, Copy, PartialOrd, Default, Debug)]
 pub struct AxisY { pub y: f64, }
 
 pub fn axis_x(x: f64) -> AxisX { AxisX { x, } }
 pub fn axis_y(y: f64) -> AxisY { AxisY { y, } }
 
-#[derive(Clone, Copy, PartialEq, Default, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Hash, Debug)]
 pub struct Point {
     pub x: AxisX,
     pub y: AxisY,
@@ -109,7 +109,7 @@ impl Segment {
     }
 }
 
-#[derive(Clone, PartialEq, Default, Debug)]
+#[derive(Clone, PartialEq, Eq, Default, Hash, Debug)]
 pub struct Rect {
     pub lt: Point,
     pub rb: Point,
@@ -343,6 +343,35 @@ impl fmt::Display for AxisX {
 impl fmt::Display for AxisY {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.y)
+    }
+}
+
+impl PartialEq for AxisX {
+    fn eq(&self, other: &AxisX) -> bool {
+        zero_epsilon(self.x - other.x)
+    }
+}
+
+impl PartialEq for AxisY {
+    fn eq(&self, other: &AxisY) -> bool {
+        zero_epsilon(self.y - other.y)
+    }
+}
+
+impl Eq for AxisX { }
+impl Eq for AxisY { }
+
+use std::hash::{Hash, Hasher};
+
+impl Hash for AxisX {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        (self.x as u64).hash(state);
+    }
+}
+
+impl Hash for AxisY {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        (self.y as u64).hash(state);
     }
 }
 

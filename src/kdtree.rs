@@ -40,27 +40,23 @@ impl<P, B, S> KdvTree<P, B, S>
           B: BoundingBox<Point = P>,
           S: Shape<BoundingBox = B>,
 {
-    pub fn build<IA, II>(axis_it: IA, shapes_it: II) -> Option<KdvTree<P, B, S>>
+    pub fn build<IA, II>(axis_it: IA, shapes_it: II) -> KdvTree<P, B, S>
         where IA: IntoIterator<Item = P::Axis>,
               II: IntoIterator<Item = S>
     {
         let axis: Vec<_> = axis_it.into_iter().collect();
         let shapes: Vec<_> = shapes_it.into_iter().collect();
-        if shapes.is_empty() {
-            None
-        } else {
-            let root_shapes: Vec<_> = shapes
-                .iter()
-                .enumerate()
-                .map(|(i, s)| ShapeFragment {
-                    bounding_box: s.bounding_box(),
-                    shape_id: i,
-                })
-                .collect();
-            Some(KdvTree {
-                root: KdvNode::build(0, &axis, &shapes, root_shapes),
-                axis, shapes,
+        let root_shapes: Vec<_> = shapes
+            .iter()
+            .enumerate()
+            .map(|(i, s)| ShapeFragment {
+                bounding_box: s.bounding_box(),
+                shape_id: i,
             })
+            .collect();
+        KdvTree {
+            root: KdvNode::build(0, &axis, &shapes, root_shapes),
+            axis, shapes,
         }
     }
 
