@@ -147,9 +147,9 @@ pub struct MotionShape {
 }
 
 #[derive(Debug)]
-struct RouteStats {
-    speed_x: f64,
-    speed_y: f64,
+pub struct RouteStats {
+    pub speed_x: f64,
+    pub speed_y: f64,
 }
 
 impl MotionShape {
@@ -673,6 +673,14 @@ impl MotionShape {
                 unreachable!(),
         }
     }
+
+    pub fn source_rect(&self) -> &geom::Rect {
+        &self.src_bbox
+    }
+
+    pub fn route_stats(&self) -> Option<&RouteStats> {
+        self.route_stats.as_ref()
+    }
 }
 
 impl kdtree::Shape for MotionShape {
@@ -745,6 +753,36 @@ pub fn intersection_bounding_box<'t, I>(intersections_it: I) -> Option<BoundingB
         }
     }
     collision_bbox
+}
+
+pub struct ShapeIntersection<'t> {
+    pub shape: &'t MotionShape,
+    pub time: f64,
+    pub count: usize,
+}
+
+pub fn intersection_shapes<'q, 't, I>(intersections_it: I, cache: &'q mut Vec<ShapeIntersection<'t>>) -> &'q [ShapeIntersection<'t>]
+    where I: Iterator<Item = kdtree::Intersection<'t, MotionShape, BoundingBox, BoundingBox>>
+{
+    cache.clear();
+    for intersection in intersections_it {
+        let mid_time = (intersection.shape_fragment.min.time.timestamp() + intersection.shape_fragment.max.time.timestamp()) / 2.;
+        if let Some(index) = cache.iter().position(|e| ::std::ptr::eq(e.shape, intersection.shape)) {
+            let entry = &mut cache[index];
+            entry.time += mid_time;
+            entry.count += 1;
+        } else {
+            cache.push(ShapeIntersection {
+                shape: intersection.shape,
+                time: mid_time,
+                count: 1,
+            });
+        };
+    }
+    for entry in cache.iter_mut() {
+        entry.time /= entry.count as f64;
+    }
+    cache
 }
 
 #[cfg(test)]

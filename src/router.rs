@@ -1,6 +1,6 @@
 use std::collections::{HashMap, BinaryHeap};
 use super::{geom, kdtree};
-use super::router_geom::{self, Axis, MotionShape, BoundingBox, Limits};
+use super::router_geom::{self, Axis, MotionShape, BoundingBox, ShapeIntersection, Limits};
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Route<'a> {
@@ -15,6 +15,7 @@ pub struct Router {
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 struct BypassKind {
+    hops: usize,
     position: geom::Point,
 }
 
@@ -39,20 +40,22 @@ enum Visit {
     NotYetVisited { hops: usize, goal_sq_dist: f64, },
 }
 
-pub struct RouterCache {
+pub struct RouterCache<'a> {
     queue: BinaryHeap<Step>,
     visited: HashMap<BypassKind, Visit>,
     path_buf: Vec<(geom::Point, usize)>,
     path: Vec<geom::Point>,
+    collision_cache: Vec<ShapeIntersection<'a>>,
 }
 
-impl RouterCache {
-    pub fn new() -> RouterCache {
+impl<'a> RouterCache<'a> {
+    pub fn new() -> RouterCache<'a> {
         RouterCache {
             queue: BinaryHeap::new(),
             visited: HashMap::new(),
             path_buf: Vec::new(),
             path: Vec::new(),
+            collision_cache: Vec::new(),
         }
     }
 
@@ -63,6 +66,8 @@ impl RouterCache {
         self.path.clear();
     }
 }
+
+const HOPZ: usize = 0;
 
 impl Router {
     pub fn init_space<I>(obstacles_iter: I, limits: Limits) -> Router where I: IntoIterator<Item = (geom::Rect, Option<(geom::Segment, f64)>)> {
@@ -75,11 +80,11 @@ impl Router {
     }
 
     pub fn route<'a, 'q>(
-        &self,
+        &'a self,
         unit_rect: &geom::Rect,
         unit_speed: f64,
         geom::Segment { src, dst, }: geom::Segment,
-        cache: &'q mut RouterCache
+        cache: &'q mut RouterCache<'a>
     )
         -> Option<Route<'q>>
     {
@@ -95,7 +100,7 @@ impl Router {
         });
 
         while let Some(step) = cache.queue.pop() {
-            if step.hops > 1 { println!(" ;; A* step: {:?}", step); }
+            if step.hops > HOPZ { println!(" ;; A* step: {:?}", step); }
             let Step { hops,  movement, goal_sq_dist, position, time, phead, } = step;
             let current_dst =
                 match movement {
@@ -119,7 +124,6 @@ impl Router {
                         match cache.visited.get(&bypass) {
                             Some(&Visit::NotYetVisited { hops: prev_hops, goal_sq_dist: prev_goal_sq_dist, })
                                 if prev_hops < hops || (prev_hops == hops && prev_goal_sq_dist < goal_sq_dist) => {
-                                    // println!(" ;; skipping because it is visited");
                                     continue;
                                 },
                             _ =>
@@ -136,72 +140,14 @@ impl Router {
                 dst: current_dst,
             };
             let translated_unit_rect = unit_rect.translate(&geom::Segment { src, dst: route_chunk.src, }.to_vec());
-            if hops > 1 {
+            if hops > HOPZ {
                 println!("  ;; @ {} going {:?} with speed {}: translated = {:?}", time, route_chunk, unit_speed, translated_unit_rect);
             }
             let motion_shape = MotionShape::with_start(translated_unit_rect, Some((route_chunk.clone(), unit_speed)), self.limits.clone(), time);
-            let collision_bbox = router_geom::intersection_bounding_box(self.space.intersects(&motion_shape))
-                .map(|bbox| {
-                    use self::kdtree::BoundingBox;
-                    geom::Rect { lt: bbox.min_corner().p2d, rb: bbox.max_corner().p2d, }
-                });
-            if let Some(obstacle_rect) = collision_bbox {
-                if hops > 1 { println!("  ;; bypassing obstacle {:?}", obstacle_rect); }
-                let mut make_trans = |bypass_pos| {
-                    // println!("  ;; bypass {:?}", bypass_pos);
-                    // println!("  ;; will arrive as {:?}", unit_rect.translate(&Segment { src: route_chunk.src, dst: bypass_pos, }.to_vec()));
-                    let goal_sq_dist = route_chunk.src.sq_dist(&bypass_pos) + bypass_pos.sq_dist(&dst);
-                    let kind = BypassKind { position: bypass_pos };
-                    let not_visited = match cache.visited.get(&kind) {
-                        None =>
-                            true,
-                        Some(&Visit::NotYetVisited { hops: prev_hops, goal_sq_dist: prev_goal_sq_dist, }) =>
-                            hops < prev_hops || (hops == prev_hops && goal_sq_dist < prev_goal_sq_dist),
-                        Some(&Visit::Visited) =>
-                            false,
-                    };
-                    if not_visited {
-                        // println!("  ;; not visited yet");
-                        cache.visited.insert(kind.clone(), Visit::NotYetVisited { hops, goal_sq_dist, });
-                        cache.queue.push(Step {
-                            hops, goal_sq_dist,
-                            movement: Movement::Bypass(kind),
-                            position: route_chunk.src,
-                            time: time,
-                            phead,
-                        });
-                    }
-                };
-
-                // unit north west corner to obstacle north east corner
-                make_trans(gen_bypass(unit_rect, |r| r.lt, route_chunk.src, &obstacle_rect, |r| r.rb.x.x + unit_speed, |r| r.lt.y.y - unit_speed));
-                // unit north west corner to obstacle south east corner
-                make_trans(gen_bypass(unit_rect, |r| r.lt, route_chunk.src, &obstacle_rect, |r| r.rb.x.x + unit_speed, |r| r.rb.y.y + unit_speed));
-                // unit north west corner to obstacle south west corner
-                make_trans(gen_bypass(unit_rect, |r| r.lt, route_chunk.src, &obstacle_rect, |r| r.lt.x.x - unit_speed, |r| r.rb.y.y + unit_speed));
-
-                // unit north east corner to obstacle north west corner
-                make_trans(gen_bypass(unit_rect, |r| r.rt(), route_chunk.src, &obstacle_rect, |r| r.lt.x.x - unit_speed, |r| r.lt.y.y - unit_speed));
-                // unit north east corner to obstacle south east corner
-                make_trans(gen_bypass(unit_rect, |r| r.rt(), route_chunk.src, &obstacle_rect, |r| r.rb.x.x + unit_speed, |r| r.rb.y.y + unit_speed));
-                // unit north east corner to obstacle south west corner
-                make_trans(gen_bypass(unit_rect, |r| r.rt(), route_chunk.src, &obstacle_rect, |r| r.lt.x.x - unit_speed, |r| r.rb.y.y + unit_speed));
-
-                // unit south east corner to obstacle north west corner
-                make_trans(gen_bypass(unit_rect, |r| r.rb, route_chunk.src, &obstacle_rect, |r| r.lt.x.x - unit_speed, |r| r.lt.y.y - unit_speed));
-                // unit south east corner to obstacle north east corner
-                make_trans(gen_bypass(unit_rect, |r| r.rb, route_chunk.src, &obstacle_rect, |r| r.rb.x.x + unit_speed, |r| r.lt.y.y - unit_speed));
-                // unit south east corner to obstacle south west corner
-                make_trans(gen_bypass(unit_rect, |r| r.rb, route_chunk.src, &obstacle_rect, |r| r.lt.x.x - unit_speed, |r| r.rb.y.y + unit_speed));
-
-                // unit south west corner to obstacle north west corner
-                make_trans(gen_bypass(unit_rect, |r| r.lb(), route_chunk.src, &obstacle_rect, |r| r.lt.x.x - unit_speed, |r| r.lt.y.y - unit_speed));
-                // unit south west corner to obstacle north east corner
-                make_trans(gen_bypass(unit_rect, |r| r.lb(), route_chunk.src, &obstacle_rect, |r| r.rb.x.x + unit_speed, |r| r.lt.y.y - unit_speed));
-                // unit south west corner to obstacle south east corner
-                make_trans(gen_bypass(unit_rect, |r| r.lb(), route_chunk.src, &obstacle_rect, |r| r.rb.x.x + unit_speed, |r| r.rb.y.y + unit_speed));
-            } else {
-                if hops > 1 { println!("  ;; path is clear"); }
+            let collisions =
+                router_geom::intersection_shapes(self.space.intersects(&motion_shape), &mut cache.collision_cache);
+            if collisions.is_empty() {
+                if hops > HOPZ { println!("  ;; path is clear"); }
                 // path is clear, run to the goal
                 cache.path_buf.push((current_dst, phead));
                 cache.queue.push(Step {
@@ -212,6 +158,69 @@ impl Router {
                     time: time + (route_chunk.src.sq_dist(&current_dst).sqrt() / unit_speed),
                     phead: cache.path_buf.len(),
                 });
+            } else {
+                for collision in collisions {
+                    let obstacle_rect = collision.shape.source_rect().translate(&geom::Point {
+                        x: geom::axis_x(collision.shape.route_stats().map(|s| s.speed_x * collision.time).unwrap_or(0.)),
+                        y: geom::axis_y(collision.shape.route_stats().map(|s| s.speed_y * collision.time).unwrap_or(0.)),
+                    });
+                    if hops > HOPZ { println!("  ;; bypassing obstacle {:?}", obstacle_rect); }
+
+                    let visited = &mut cache.visited;
+                    let queue = &mut cache.queue;
+                    let mut make_trans = |bypass_pos| {
+                        let goal_sq_dist = route_chunk.src.sq_dist(&bypass_pos) + bypass_pos.sq_dist(&dst);
+                        let kind = BypassKind { hops, position: bypass_pos };
+                        let not_visited = match visited.get(&kind) {
+                            None =>
+                                true,
+                            Some(&Visit::NotYetVisited { hops: prev_hops, goal_sq_dist: prev_goal_sq_dist, }) =>
+                                hops < prev_hops || (hops == prev_hops && goal_sq_dist < prev_goal_sq_dist),
+                            Some(&Visit::Visited) =>
+                                false,
+                        };
+                        if not_visited {
+                            if hops > HOPZ { println!("   ;; bypassing @ {:?}", kind); }
+                            visited.insert(kind.clone(), Visit::NotYetVisited { hops, goal_sq_dist, });
+                            queue.push(Step {
+                                hops, goal_sq_dist,
+                                movement: Movement::Bypass(kind),
+                                position: route_chunk.src,
+                                time: time,
+                                phead,
+                            });
+                        }
+                    };
+
+                    let unit_rect = &unit_rect.translate(&geom::Segment { src, dst: route_chunk.src, }.to_vec());
+                    // unit north west corner to obstacle north east corner
+                    make_trans(gen_bypass(unit_rect, |r| r.lt, route_chunk.src, &obstacle_rect, |r| r.rb.x.x + unit_speed, |r| r.lt.y.y - unit_speed));
+                    // unit north west corner to obstacle south east corner
+                    make_trans(gen_bypass(unit_rect, |r| r.lt, route_chunk.src, &obstacle_rect, |r| r.rb.x.x + unit_speed, |r| r.rb.y.y + unit_speed));
+                    // unit north west corner to obstacle south west corner
+                    make_trans(gen_bypass(unit_rect, |r| r.lt, route_chunk.src, &obstacle_rect, |r| r.lt.x.x - unit_speed, |r| r.rb.y.y + unit_speed));
+
+                    // unit north east corner to obstacle north west corner
+                    make_trans(gen_bypass(unit_rect, |r| r.rt(), route_chunk.src, &obstacle_rect, |r| r.lt.x.x - unit_speed, |r| r.lt.y.y - unit_speed));
+                    // unit north east corner to obstacle south east corner
+                    make_trans(gen_bypass(unit_rect, |r| r.rt(), route_chunk.src, &obstacle_rect, |r| r.rb.x.x + unit_speed, |r| r.rb.y.y + unit_speed));
+                    // unit north east corner to obstacle south west corner
+                    make_trans(gen_bypass(unit_rect, |r| r.rt(), route_chunk.src, &obstacle_rect, |r| r.lt.x.x - unit_speed, |r| r.rb.y.y + unit_speed));
+
+                    // unit south east corner to obstacle north west corner
+                    make_trans(gen_bypass(unit_rect, |r| r.rb, route_chunk.src, &obstacle_rect, |r| r.lt.x.x - unit_speed, |r| r.lt.y.y - unit_speed));
+                    // unit south east corner to obstacle north east corner
+                    make_trans(gen_bypass(unit_rect, |r| r.rb, route_chunk.src, &obstacle_rect, |r| r.rb.x.x + unit_speed, |r| r.lt.y.y - unit_speed));
+                    // unit south east corner to obstacle south west corner
+                    make_trans(gen_bypass(unit_rect, |r| r.rb, route_chunk.src, &obstacle_rect, |r| r.lt.x.x - unit_speed, |r| r.rb.y.y + unit_speed));
+
+                    // unit south west corner to obstacle north west corner
+                    make_trans(gen_bypass(unit_rect, |r| r.lb(), route_chunk.src, &obstacle_rect, |r| r.lt.x.x - unit_speed, |r| r.lt.y.y - unit_speed));
+                    // unit south west corner to obstacle north east corner
+                    make_trans(gen_bypass(unit_rect, |r| r.lb(), route_chunk.src, &obstacle_rect, |r| r.rb.x.x + unit_speed, |r| r.lt.y.y - unit_speed));
+                    // unit south west corner to obstacle south east corner
+                    make_trans(gen_bypass(unit_rect, |r| r.lb(), route_chunk.src, &obstacle_rect, |r| r.rb.x.x + unit_speed, |r| r.rb.y.y + unit_speed));
+                }
             }
         }
 
@@ -324,29 +333,30 @@ mod test {
             Some([
                 Point { x: AxisX { x: 55. }, y: AxisY { y: 155. } },
                 Point { x: AxisX { x: 93. }, y: AxisY { y: 93. } },
-                Point { x: AxisX { x: 205. }, y: AxisY { y: 72.5 } },
+                Point { x: AxisX { x: 167. }, y: AxisY { y: 93. } },
                 Point { x: AxisX { x: 255. }, y: AxisY { y: 155. } },
             ].as_ref())
         );
     }
 
-    // #[test]
-    // fn route_static_obstacles_trap() {
-    //     let router = Router::init_space(vec![
-    //         (rt(100., 100., 160., 300.), None),
-    //         (rt(160., 240., 400., 300.), None),
-    //         (rt(400., 100., 460., 300.), None),
-    //     ], Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., });
-    //     let mut cache = RouterCache::new();
-    //     assert_eq!(
-    //         router.route(&rt(260., 140., 300., 180.), 2., sg(280., 160., 580., 340.), &mut cache).map(|r| r.hops),
-    //         Some([
-    //             // Point { x: axis_x(12.), y: axis_y(12.), },
-    //             // Point { x: axis_x(10.), y: axis_y(16.), },
-    //             // Point { x: axis_x(32.), y: axis_y(32.), },
-    //         ].as_ref())
-    //     );
-    // }
+    #[test]
+    fn route_static_obstacles_trap() {
+        let router = Router::init_space(vec![
+            (rt(100., 100., 160., 300.), None),
+            (rt(160., 240., 400., 300.), None),
+            (rt(400., 100., 460., 300.), None),
+        ], Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., });
+        let mut cache = RouterCache::new();
+        assert_eq!(
+            router.route(&rt(260., 140., 300., 180.), 2., sg(280., 160., 580., 340.), &mut cache).map(|r| r.hops),
+            Some([
+                Point { x: AxisX { x: 280. }, y: AxisY { y: 160. } },
+                Point { x: AxisX { x: 378. }, y: AxisY { y: 78. } },
+                Point { x: AxisX { x: 482. }, y: AxisY { y: 78. } },
+                Point { x: AxisX { x: 580. }, y: AxisY { y: 340. } },
+            ].as_ref())
+        );
+    }
 
     // #[test]
     // fn route_moving_obstacle() {
