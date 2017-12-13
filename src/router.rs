@@ -16,7 +16,6 @@ pub struct Router {
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 struct BypassKind {
     position: geom::Point,
-    obstacle: geom::Rect,
 }
 
 #[derive(Debug)]
@@ -139,31 +138,18 @@ impl Router {
             let translated_unit_rect = unit_rect.translate(&geom::Segment { src, dst: route_chunk.src, }.to_vec());
             println!("  ;; @ {} going {:?} with speed {}: translated = {:?}", time, route_chunk, unit_speed, translated_unit_rect);
             let motion_shape = MotionShape::with_start(translated_unit_rect, Some((route_chunk.clone(), unit_speed)), self.limits.clone(), time);
-            let mut collision_bbox: Option<geom::Rect> = None;
-            for intersection in self.space.intersects(&motion_shape) {
-                use super::kdtree::BoundingBox;
-                let intersection_proj = geom::Rect {
-                    lt: intersection.shape_fragment.min_corner().p2d,
-                    rb: intersection.shape_fragment.max_corner().p2d,
-                };
-                if let Some(ref mut bbox) = collision_bbox {
-                    use self::geom::{axis_x, axis_y};
-                    bbox.lt.x = axis_x(bbox.lt.x.x.min(intersection_proj.lt.x.x));
-                    bbox.lt.y = axis_y(bbox.lt.y.y.min(intersection_proj.lt.y.y));
-                    bbox.rb.x = axis_x(bbox.rb.x.x.max(intersection_proj.rb.x.x));
-                    bbox.rb.y = axis_y(bbox.rb.y.y.max(intersection_proj.rb.y.y));
-                } else {
-                    collision_bbox = Some(intersection_proj);
-                }
-            }
-
+            let collision_bbox = router_geom::intersection_bounding_box(self.space.intersects(&motion_shape))
+                .map(|bbox| {
+                    use self::kdtree::BoundingBox;
+                    geom::Rect { lt: bbox.min_corner().p2d, rb: bbox.max_corner().p2d, }
+                });
             if let Some(obstacle_rect) = collision_bbox {
                 println!("  ;; bypassing obstacle {:?}", obstacle_rect);
                 let mut make_trans = |bypass_pos| {
                     // println!("  ;; bypass {:?}", bypass_pos);
                     // println!("  ;; will arrive as {:?}", unit_rect.translate(&Segment { src: route_chunk.src, dst: bypass_pos, }.to_vec()));
                     let goal_sq_dist = route_chunk.src.sq_dist(&bypass_pos) + bypass_pos.sq_dist(&dst);
-                    let kind = BypassKind { position: bypass_pos, obstacle: obstacle_rect.clone(), };
+                    let kind = BypassKind { position: bypass_pos };
                     let not_visited = match cache.visited.get(&kind) {
                         None =>
                             true,
@@ -326,21 +312,21 @@ mod test {
         );
     }
 
-    #[test]
-    fn route_static_obstacle_1() {
-        let router = Router::init_space(vec![
-            (rt(100., 100., 160., 300.), None),
-        ], Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., });
-        let mut cache = RouterCache::new();
-        assert_eq!(
-            router.route(&rt(50., 150., 60., 160.), 2., sg(55., 155., 255., 155.), &mut cache).map(|r| r.hops),
-            Some([
-                // Point { x: axis_x(12.), y: axis_y(12.), },
-                // Point { x: axis_x(10.), y: axis_y(16.), },
-                // Point { x: axis_x(32.), y: axis_y(32.), },
-            ].as_ref())
-        );
-    }
+    // #[test]
+    // fn route_static_obstacle_1() {
+    //     let router = Router::init_space(vec![
+    //         (rt(100., 100., 160., 300.), None),
+    //     ], Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., });
+    //     let mut cache = RouterCache::new();
+    //     assert_eq!(
+    //         router.route(&rt(50., 150., 60., 160.), 2., sg(55., 155., 255., 155.), &mut cache).map(|r| r.hops),
+    //         Some([
+    //             // Point { x: axis_x(12.), y: axis_y(12.), },
+    //             // Point { x: axis_x(10.), y: axis_y(16.), },
+    //             // Point { x: axis_x(32.), y: axis_y(32.), },
+    //         ].as_ref())
+    //     );
+    // }
 
     // #[test]
     // fn route_static_obstacles_trap() {

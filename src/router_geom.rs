@@ -387,6 +387,9 @@ impl MotionShape {
                 assert!(TimeMotion::Moment(cut_time_l) <= fragment.max.time);
                 assert!(TimeMotion::Moment(cut_time_r) >= fragment.min.time);
                 assert!(TimeMotion::Moment(cut_time_r) <= fragment.max.time);
+
+                println!("  ;;; cut_time_l = {}, cut_time_r = {}", cut_time_l, cut_time_r);
+
                 if speed_y < 0. {
                     // movement to the top
                     if speed_x < 0. {
@@ -680,17 +683,17 @@ impl kdtree::Shape for MotionShape {
 
     fn cut(&self, fragment: &BoundingBox, cut_axis: &Axis, cut_coord: &Coord) -> Option<(BoundingBox, BoundingBox)> {
 
-        // println!(" ;; self.route_stats: {:?}", self.route_stats);
-        // println!(" ;; self.src_bbox: {:?}", self.src_bbox);
-        // println!(" ;; fragment: {:?}", fragment);
-        // println!(" ;; cut_axis: {:?}", cut_axis);
-        // println!(" ;; cut_coord: {:?}", cut_coord);
+        println!(" ;; self.route_stats: {:?}", self.route_stats);
+        println!(" ;; self.src_bbox: {:?}", self.src_bbox);
+        println!(" ;; fragment: {:?}", fragment);
+        println!(" ;; cut_axis: {:?}", cut_axis);
+        println!(" ;; cut_coord: {:?}", cut_coord);
 
         if let Some((left_bbox, right_bbox)) = self.cut_fragment(fragment, cut_axis, cut_coord) {
 
-            // println!(" ;; => L: {:?}", left_bbox);
-            // println!(" ;; => R: {:?}", right_bbox);
-            // println!("");
+            println!(" ;; => L: {:?}", left_bbox);
+            println!(" ;; => R: {:?}", right_bbox);
+            println!("");
 
             assert!(left_bbox.min.p2d.x >= self.bounding_box.min.p2d.x);
             assert!(left_bbox.min.p2d.y >= self.bounding_box.min.p2d.y);
@@ -703,12 +706,37 @@ impl kdtree::Shape for MotionShape {
             Some((left_bbox, right_bbox))
         } else {
 
-            // println!(" ;; => NO CUT");
-            // println!("");
+            println!(" ;; => NO CUT");
+            println!("");
 
             None
         }
     }
+}
+
+pub fn intersection_bounding_box<'t, I>(intersections_it: I) -> Option<BoundingBox>
+    where I: Iterator<Item = kdtree::Intersection<'t, MotionShape, BoundingBox, BoundingBox>>
+{
+    let mut collision_bbox: Option<BoundingBox> = None;
+    for intersection in intersections_it {
+        let intersection_proj = intersection.shape_fragment;
+        if let Some(ref mut bbox) = collision_bbox {
+            use self::geom::{axis_x, axis_y};
+            bbox.min.p2d.x = axis_x(bbox.min.p2d.x.x.min(intersection_proj.min.p2d.x.x));
+            bbox.min.p2d.y = axis_y(bbox.min.p2d.y.y.min(intersection_proj.min.p2d.y.y));
+            if intersection_proj.min.time < bbox.min.time {
+                bbox.min.time = intersection_proj.min.time;
+            }
+            bbox.max.p2d.x = axis_x(bbox.max.p2d.x.x.max(intersection_proj.max.p2d.x.x));
+            bbox.max.p2d.y = axis_y(bbox.max.p2d.y.y.max(intersection_proj.max.p2d.y.y));
+            if intersection_proj.max.time > bbox.max.time {
+                bbox.max.time = intersection_proj.max.time;
+            }
+        } else {
+            collision_bbox = Some(intersection_proj.clone());
+        }
+    }
+    collision_bbox
 }
 
 #[cfg(test)]
@@ -939,6 +967,67 @@ mod test {
     }
 
     #[test]
+    fn motion_shape_suspicious_cut() {
+        let shape = MotionShape::new(
+            geom::Rect {
+                lt: geom::Point { x: geom::axis_x(50.), y: geom::axis_y(150.), },
+                rb: geom::Point { x: geom::axis_x(60.), y: geom::axis_y(160.), },
+            },
+            Some((geom::Segment {
+                src: geom::Point { x: geom::axis_x(55.), y: geom::axis_y(155.), },
+                dst: geom::Point { x: geom::axis_x(108.), y: geom::axis_y(134.5), },
+            }, 1.)),
+            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+        );
+        let fragment = super::BoundingBox {
+            min: super::Point { p2d: geom::Point { x: geom::AxisX { x: 50. }, y: geom::AxisY { y: 129.5 } }, time: TimeMotion::Moment(0.) },
+            max: super::Point { p2d: geom::Point { x: geom::AxisX { x: 113. }, y: geom::AxisY { y: 160. } }, time: TimeMotion::Stop(56.82649030161902), },
+        };
+        let (bbox_l, bbox_r) = shape.cut(&fragment, &Axis::Y, &Coord::XY(150.)).unwrap();
+        assert_eq!(bbox_l.min_corner().coord(&Axis::X), Coord::XY(50.));
+        assert_eq!(bbox_l.min_corner().coord(&Axis::Y), Coord::XY(150.));
+        assert_eq!(bbox_l.min_corner().coord(&Axis::Time), Coord::Time(TimeMotion::Moment(0.)));
+        assert_eq!(bbox_l.max_corner().coord(&Axis::X), Coord::XY(50.));
+        assert_eq!(bbox_l.max_corner().coord(&Axis::Y), Coord::XY(160.));
+        assert_eq!(bbox_l.max_corner().coord(&Axis::Time), Coord::Time(TimeMotion::Moment(27.72023917152147)));
+        assert_eq!(bbox_r.min_corner().coord(&Axis::X), Coord::XY(85.85365853658536));
+        assert_eq!(bbox_r.min_corner().coord(&Axis::Y), Coord::XY(129.5));
+        assert_eq!(bbox_r.min_corner().coord(&Axis::Time), Coord::Time(TimeMotion::Moment(27.72023917152147)));
+        assert_eq!(bbox_r.max_corner().coord(&Axis::X), Coord::XY(113.));
+        assert_eq!(bbox_r.max_corner().coord(&Axis::Y), Coord::XY(150.));
+        assert_eq!(bbox_r.max_corner().coord(&Axis::Time), Coord::Time(TimeMotion::Stop(56.82649030161902)));
+    }
+
+    // #[test]
+    // fn suspicious_collision() {
+    //     let shapes = vec![
+    //         MotionShape::new(geom::Rect {
+    //             lt: geom::Point { x: geom::axis_x(100.), y: geom::axis_y(100.), },
+    //             rb: geom::Point { x: geom::axis_x(160.), y: geom::axis_y(300.), },
+    //         }, None, Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., }),
+    //     ];
+    //     let tree = kdtree::KdvTree::build(Some(Axis::X).into_iter().chain(Some(Axis::Y).into_iter()).chain(Some(Axis::Time)), shapes);
+    //     let moving_shape = MotionShape::new(
+    //         geom::Rect {
+    //             lt: geom::Point { x: geom::axis_x(50.), y: geom::axis_y(150.), },
+    //             rb: geom::Point { x: geom::axis_x(60.), y: geom::axis_y(160.), },
+    //         },
+    //         Some((geom::Segment {
+    //             src: geom::Point { x: geom::axis_x(55.), y: geom::axis_y(155.), },
+    //             dst: geom::Point { x: geom::axis_x(108.), y: geom::axis_y(134.5), },
+    //         }, 1.)),
+    //         Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+    //     );
+    //     assert_eq!(
+    //         super::intersection_bounding_box(tree.intersects(&moving_shape)),
+    //         Some(super::BoundingBox {
+    //             min: super::Point { p2d: geom::Point { x: geom::AxisX { x: 100. }, y: geom::AxisY { y: 150. } }, time: TimeMotion::Moment(0.) },
+    //             max: super::Point { p2d: geom::Point { x: geom::AxisX { x: 160. }, y: geom::AxisY { y: 162.5 } }, time: TimeMotion::Stop(0.) },
+    //         })
+    //     );
+    // }
+
+    #[test]
     fn sample_kdtree() {
         let shapes = vec![
             MotionShape::new(
@@ -1026,6 +1115,7 @@ mod test {
             }, 2.)),
             Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
         );
+
         let mut collision_bbox: Option<geom::Rect> = None;
         for intersection in tree.intersects(&moving_shape) {
             let intersection_proj = geom::Rect {
@@ -1042,9 +1132,12 @@ mod test {
                 collision_bbox = Some(intersection_proj);
             }
         }
-        assert_eq!(collision_bbox, Some(geom::Rect {
-            lt: geom::Point { x: geom::AxisX { x: 358.75 }, y: geom::AxisY { y: 192.8125 } },
-            rb: geom::Point { x: geom::AxisX { x: 460. }, y: geom::AxisY { y: 300. } },
-        }));
+        assert_eq!(
+            super::intersection_bounding_box(tree.intersects(&moving_shape)),
+            Some(super::BoundingBox {
+                min: super::Point { p2d: geom::Point { x: geom::AxisX { x: 358.75 }, y: geom::AxisY { y: 192.8125 } }, time: TimeMotion::Moment(0.) },
+                max: super::Point { p2d: geom::Point { x: geom::AxisX { x: 460. }, y: geom::AxisY { y: 300. } }, time: TimeMotion::Stop(0.) },
+            })
+        );
     }
 }
