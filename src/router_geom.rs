@@ -158,7 +158,7 @@ impl MotionShape {
     }
 
     pub fn with_start(src_bbox: geom::Rect, en_route: Option<(geom::Segment, f64)>, limits: Limits, start_time: f64) -> MotionShape {
-        let (min, max, route_stats) = if let Some((route, speed)) = en_route {
+        let (min, max, src_bbox, route_stats) = if let Some((route, speed)) = en_route {
             let dst_bbox = src_bbox.translate(&route.to_vec());
             let dist = route.sq_dist().sqrt();
             let route_time = dist / speed;
@@ -178,11 +178,15 @@ impl MotionShape {
                 },
                 time: TimeMotion::Stop(start_time + (dist / speed)),
             };
-            (min, max, Some(RouteStats { speed_x, speed_y, }))
+            let src_bbox = src_bbox.translate(&geom::Point {
+                x: geom::axis_x(-speed_x * start_time),
+                y: geom::axis_y(-speed_y * start_time),
+            });
+            (min, max, src_bbox, Some(RouteStats { speed_x, speed_y, }))
         } else {
             let min = Point { p2d: src_bbox.lt, time: TimeMotion::Moment(start_time), };
             let max = Point { p2d: src_bbox.rb, time: TimeMotion::Stop(start_time), };
-            (min, max, None)
+            (min, max, src_bbox, None)
         };
 
         MotionShape {
@@ -692,6 +696,13 @@ impl kdtree::Shape for MotionShape {
             // println!(" ;; => R: {:?}", right_bbox);
             // println!("");
 
+            assert!(left_bbox.min.p2d.x <= left_bbox.max.p2d.x);
+            assert!(left_bbox.min.p2d.y <= left_bbox.max.p2d.y);
+            assert!(left_bbox.min.time <= left_bbox.max.time);
+            assert!(right_bbox.min.p2d.x <= right_bbox.max.p2d.x);
+            assert!(right_bbox.min.p2d.y <= right_bbox.max.p2d.y);
+            assert!(right_bbox.min.time <= right_bbox.max.time);
+
             assert!(left_bbox.min.p2d.x >= self.bounding_box.min.p2d.x);
             assert!(left_bbox.min.p2d.y >= self.bounding_box.min.p2d.y);
             assert!(left_bbox.max.p2d.x <= self.bounding_box.max.p2d.x);
@@ -1020,6 +1031,36 @@ mod test {
             Some(super::BoundingBox {
                 min: super::Point { p2d: geom::Point { x: geom::AxisX { x: 100. }, y: geom::AxisY { y: 125. } }, time: TimeMotion::Moment(0.) },
                 max: super::Point { p2d: geom::Point { x: geom::AxisX { x: 115. }, y: geom::AxisY { y: 150. } }, time: TimeMotion::Stop(0.) },
+            })
+        );
+    }
+
+    #[test]
+    fn suspicious_assert() {
+        let shapes = vec![
+            MotionShape::new(geom::Rect {
+                lt: geom::Point { x: geom::axis_x(100.), y: geom::axis_y(100.), },
+                rb: geom::Point { x: geom::axis_x(160.), y: geom::axis_y(300.), },
+            }, None, Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., }),
+        ];
+        let tree = kdtree::KdvTree::build(Some(Axis::X).into_iter().chain(Some(Axis::Y).into_iter()).chain(Some(Axis::Time)), shapes);
+        let moving_shape = MotionShape::with_start(
+            geom::Rect {
+                lt: geom::Point { x: geom::axis_x(88.), y: geom::axis_y(185.5), },
+                rb: geom::Point { x: geom::axis_x(98.), y: geom::axis_y(195.5), },
+            },
+            Some((geom::Segment {
+                src: geom::Point { x: geom::axis_x(93.), y: geom::axis_y(190.5), },
+                dst: geom::Point { x: geom::axis_x(134.75), y: geom::axis_y(191.), },
+            }, 2.)),
+            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+            26.001201895297072,
+        );
+        assert_eq!(
+            super::intersection_bounding_box(tree.intersects(&moving_shape)),
+            Some(super::BoundingBox {
+                min: super::Point { p2d: geom::Point { x: geom::AxisX { x: 100. }, y: geom::AxisY { y: 175. } }, time: TimeMotion::Moment(0.) },
+                max: super::Point { p2d: geom::Point { x: geom::AxisX { x: 141.25 }, y: geom::AxisY { y: 200. } }, time: TimeMotion::Stop(0.) },
             })
         );
     }
