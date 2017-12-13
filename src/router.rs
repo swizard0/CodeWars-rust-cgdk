@@ -70,8 +70,6 @@ impl<'a> RouterCache<'a> {
     }
 }
 
-const HOPZ: usize = 0;
-
 impl Router {
     pub fn init_space<I>(obstacles_iter: I, limits: Limits) -> Router where I: IntoIterator<Item = (geom::Rect, Option<(geom::Segment, f64)>)> {
         let space = kdtree::KdvTree::build(
@@ -104,7 +102,7 @@ impl Router {
         });
 
         while let Some(step) = cache.queue.pop() {
-            if step.hops > HOPZ { println!(" ;; A* step: {:?}", step); }
+            // println!(" ;; A* step: {:?}", step);
             let Step { hops,  movement, goal_sq_dist, passed_sq_dist, position, time, phead, } = step;
             let current_dst =
                 match movement {
@@ -144,14 +142,12 @@ impl Router {
                 dst: current_dst,
             };
             let translated_unit_rect = unit_rect.translate(&geom::Segment { src, dst: route_chunk.src, }.to_vec());
-            if hops > HOPZ {
-                println!("  ;; @ {} going {:?} with speed {}: translated = {:?}", time, route_chunk, unit_speed, translated_unit_rect);
-            }
+            // println!("  ;; @ {} going {:?} with speed {}: translated = {:?}", time, route_chunk, unit_speed, translated_unit_rect);
             let motion_shape = MotionShape::with_start(translated_unit_rect, Some((route_chunk.clone(), unit_speed)), self.limits.clone(), time);
             let collisions =
                 router_geom::intersection_shapes(self.space.intersects(&motion_shape), &mut cache.collision_cache);
             if collisions.is_empty() {
-                if hops > HOPZ { println!("  ;; path is clear"); }
+                // println!("  ;; path is clear");
                 // path is clear, run to the goal
                 cache.path_buf.push((current_dst, phead));
                 cache.queue.push(Step {
@@ -169,7 +165,7 @@ impl Router {
                         x: geom::axis_x(collision.shape.route_stats().map(|s| s.speed_x * collision.time).unwrap_or(0.)),
                         y: geom::axis_y(collision.shape.route_stats().map(|s| s.speed_y * collision.time).unwrap_or(0.)),
                     });
-                    if hops > HOPZ { println!("  ;; bypassing obstacle {:?}", obstacle_rect); }
+                    // println!("  ;; bypassing obstacle {:?}", obstacle_rect);
 
                     let visited = &mut cache.visited;
                     let queue = &mut cache.queue;
@@ -196,7 +192,7 @@ impl Router {
                                 false,
                         };
                         if not_visited {
-                            if hops > HOPZ { println!("   ;; bypassing {:?} @ {:?}", kind, bypass_pos); }
+                            // println!("   ;; bypassing {:?} @ {:?}", kind, bypass_pos);
                             visited.insert(kind.clone(), Visit::NotYetVisited { hops, goal_sq_dist, passed_sq_dist, });
                             queue.push(Step {
                                 hops, goal_sq_dist, passed_sq_dist,
@@ -417,7 +413,7 @@ mod test {
         ], Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., });
         let mut cache = RouterCache::new();
         assert_eq!(
-            router.route(&rt(10., 10., 14., 14.,), 3., sg(12., 12., 42., 42.,), &mut cache).map(|r| r.hops),
+            router.route(&rt(10., 10., 14., 14.), 3., sg(12., 12., 42., 42.), &mut cache).map(|r| r.hops),
             Some([
                 Point { x: AxisX { x: 12. }, y: AxisY { y: 12. } },
                 Point { x: AxisX { x: 23.020833333333336 }, y: AxisY { y: 31. } },
@@ -426,20 +422,22 @@ mod test {
         );
     }
 
-//     #[test]
-//     fn route_three_moving_obstacles() {
-//         let units = vec![
-//             RU(rt(80., 110., 100., 130.), 1., Some(sg(90., 120., 30., 120.))),
-//             RU(rt(90., 130., 110., 150.), 1., Some(sg(100., 140., 40., 140.))),
-//             RU(rt(80., 150., 100., 170.), 1., Some(sg(90., 160., 30., 160.))),
-//         ];
-//         let router = Router::from_iter(rt(0., 0., 1000., 1000.), units.into_iter());
-//         let mut cache = RouterCache::new();
-//         let unit = RU(rt(10., 138., 14., 142.,), 2., None);
-//         let goal = sg(12., 140., 82., 140.,);
-//         assert_eq!(
-//             router.route(&unit, goal.src, goal.dst, &mut cache).map(|r| r.hops),
-//             None
-//         );
-//     }
+    #[test]
+    fn route_three_moving_obstacles() {
+        let router = Router::init_space(vec![
+            (rt(80., 110., 100., 130.), Some((sg(90., 120., 30., 120.), 1.))),
+            (rt(90., 130., 110., 150.), Some((sg(100., 140., 40., 140.), 1.))),
+            (rt(80., 150., 100., 170.), Some((sg(90., 160., 30., 160.), 1.))),
+        ], Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., });
+        let mut cache = RouterCache::new();
+        assert_eq!(
+            router.route(&rt(10., 138., 14., 142.), 2., sg(12., 140., 82., 140.), &mut cache).map(|r| r.hops),
+            Some([
+                Point { x: AxisX { x: 12. }, y: AxisY { y: 140. } },
+                Point { x: AxisX { x: 42.33572048611111 }, y: AxisY { y: 174. } },
+                Point { x: AxisX { x: 71.16471354166669 }, y: AxisY { y: 174. } },
+                Point { x: AxisX { x: 82. }, y: AxisY { y: 140. } },
+            ].as_ref())
+        );
+    }
 }
