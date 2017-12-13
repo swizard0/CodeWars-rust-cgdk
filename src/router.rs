@@ -393,22 +393,38 @@ mod test {
         );
     }
 
-//     #[test]
-//     fn route_moving_obstacle_towards() {
-//         let units = vec![RU(rt(60., 10., 80., 30.), 2., Some(sg(70., 20., 10., 20.)))];
-//         let router = Router::from_iter(rt(0., 0., 1000., 1000.), units.into_iter());
-//         let mut cache = RouterCache::new();
-//         let unit = RU(rt(10., 10., 14., 14.,), 1., None);
-//         let goal = sg(12., 12., 42., 42.,);
-//         assert_eq!(
-//             router.route(&unit, goal.src, goal.dst, &mut cache).map(|r| r.hops),
-//             Some([
-//                 Point { x: axis_x(12.), y: axis_y(12.), },
-//                 Point { x: axis_x(38.745166004060955), y: axis_y(34.), },
-//                 Point { x: axis_x(42.), y: axis_y(42.), },
-//             ].as_ref())
-//         );
-//     }
+    #[test]
+    fn route_moving_obstacle_towards() {
+        let router = Router::init_space(vec![
+            (rt(60., 10., 80., 30.), Some((sg(70., 20., 10., 20.), 2.)))
+        ], Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., });
+        let mut cache = RouterCache::new();
+        assert_eq!(
+            router.route(&rt(10., 10., 14., 14.,), 1., sg(12., 12., 42., 42.,), &mut cache).map(|r| r.hops),
+            Some([
+                Point { x: AxisX { x: 12. }, y: AxisY { y: 12. } },
+                Point { x: AxisX { x: 19.641304347826086 }, y: AxisY { y: 7. } },
+                Point { x: AxisX { x: 35.31578947368421 }, y: AxisY { y: 7. } },
+                Point { x: AxisX { x: 42. }, y: AxisY { y: 42. } },
+            ].as_ref())
+        );
+    }
+
+    #[test]
+    fn route_moving_obstacle_backwards() {
+        let router = Router::init_space(vec![
+            (rt(20., 10., 40., 30.), Some((sg(30., 20., 80., 20.), 2.)))
+        ], Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., });
+        let mut cache = RouterCache::new();
+        assert_eq!(
+            router.route(&rt(10., 10., 14., 14.,), 3., sg(12., 12., 42., 42.,), &mut cache).map(|r| r.hops),
+            Some([
+                Point { x: AxisX { x: 12. }, y: AxisY { y: 12. } },
+                Point { x: AxisX { x: 23.020833333333336 }, y: AxisY { y: 31. } },
+                Point { x: AxisX { x: 42. }, y: AxisY { y: 42. } },
+            ].as_ref())
+        );
+    }
 
 //     #[test]
 //     fn route_three_moving_obstacles() {
