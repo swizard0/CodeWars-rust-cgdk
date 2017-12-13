@@ -32,6 +32,7 @@ struct Step {
     hops: usize,
     movement: Movement,
     goal_sq_dist: f64,
+    passed_sq_dist: f64,
     position: geom::Point,
     time: f64,
     phead: usize,
@@ -39,7 +40,7 @@ struct Step {
 
 enum Visit {
     Visited,
-    NotYetVisited { hops: usize, goal_sq_dist: f64, },
+    NotYetVisited { hops: usize, goal_sq_dist: f64, passed_sq_dist: f64, },
 }
 
 pub struct RouterCache<'a> {
@@ -96,6 +97,7 @@ impl Router {
             hops: 1,
             movement: Movement::TowardsGoal,
             goal_sq_dist: src.sq_dist(&dst),
+            passed_sq_dist: 0.,
             position: src,
             time: 0.,
             phead: 1,
@@ -103,7 +105,7 @@ impl Router {
 
         while let Some(step) = cache.queue.pop() {
             if step.hops > HOPZ { println!(" ;; A* step: {:?}", step); }
-            let Step { hops,  movement, goal_sq_dist, position, time, phead, } = step;
+            let Step { hops,  movement, goal_sq_dist, passed_sq_dist, position, time, phead, } = step;
             let current_dst =
                 match movement {
                     Movement::TowardsGoal => {
@@ -124,10 +126,11 @@ impl Router {
                     Movement::Bypass { position: bypass_pos, kind: bypass, } => {
                         // check if node is visited
                         match cache.visited.get(&bypass) {
-                            Some(&Visit::NotYetVisited { hops: prev_hops, goal_sq_dist: prev_goal_sq_dist, })
-                                if prev_hops < hops || (prev_hops == hops && prev_goal_sq_dist < goal_sq_dist) => {
-                                    continue;
-                                },
+                            Some(&Visit::NotYetVisited { hops: prev_hops, goal_sq_dist: prev_goal_sq_dist, passed_sq_dist: prev_passed_sq_dist, })
+                                if prev_hops < hops || (
+                                    prev_hops == hops && (prev_goal_sq_dist + prev_passed_sq_dist) < (goal_sq_dist + passed_sq_dist)
+                                ) =>
+                                    continue,
                             _ =>
                                 (),
                         }
@@ -155,6 +158,7 @@ impl Router {
                     hops: hops + 1,
                     movement: Movement::TowardsGoal,
                     goal_sq_dist: current_dst.sq_dist(&dst),
+                    passed_sq_dist: passed_sq_dist + route_chunk.sq_dist(),
                     position: current_dst,
                     time: time + (route_chunk.src.sq_dist(&current_dst).sqrt() / unit_speed),
                     phead: cache.path_buf.len(),
@@ -173,7 +177,8 @@ impl Router {
                         if route_chunk.src == bypass_pos {
                             return;
                         }
-                        let goal_sq_dist = route_chunk.src.sq_dist(&bypass_pos) + bypass_pos.sq_dist(&dst);
+                        let goal_sq_dist = bypass_pos.sq_dist(&dst);
+                        let passed_sq_dist = passed_sq_dist + route_chunk.src.sq_dist(&bypass_pos);
                         let kind = BypassKind {
                             start: route_chunk.src,
                             obstacle: collision.shape as *const _,
@@ -183,16 +188,18 @@ impl Router {
                         let not_visited = match visited.get(&kind) {
                             None =>
                                 true,
-                            Some(&Visit::NotYetVisited { hops: prev_hops, goal_sq_dist: prev_goal_sq_dist, }) =>
-                                hops < prev_hops || (hops == prev_hops && goal_sq_dist < prev_goal_sq_dist),
+                            Some(&Visit::NotYetVisited { hops: prev_hops, goal_sq_dist: prev_goal_sq_dist, passed_sq_dist: prev_passed_sq_dist, }) =>
+                                hops < prev_hops || (
+                                    hops == prev_hops && (goal_sq_dist + passed_sq_dist) < (prev_goal_sq_dist + prev_passed_sq_dist)
+                                ),
                             Some(&Visit::Visited) =>
                                 false,
                         };
                         if not_visited {
                             if hops > HOPZ { println!("   ;; bypassing {:?} @ {:?}", kind, bypass_pos); }
-                            visited.insert(kind.clone(), Visit::NotYetVisited { hops, goal_sq_dist, });
+                            visited.insert(kind.clone(), Visit::NotYetVisited { hops, goal_sq_dist, passed_sq_dist, });
                             queue.push(Step {
-                                hops, goal_sq_dist,
+                                hops, goal_sq_dist, passed_sq_dist,
                                 movement: Movement::Bypass { position: bypass_pos, kind, },
                                 position: route_chunk.src,
                                 time: time,
@@ -265,14 +272,14 @@ impl Ord for Step {
             .cmp(&self.hops)
             .then_with(|| match (&self.movement, &other.movement) {
                 (&Movement::TowardsGoal, &Movement::TowardsGoal) | (&Movement::Bypass { .. }, &Movement::Bypass { .. }) =>
-                    if self.goal_sq_dist < other.goal_sq_dist {
-                        if geom::zero_epsilon(other.goal_sq_dist - self.goal_sq_dist) {
+                    if (self.goal_sq_dist + self.passed_sq_dist) < (other.goal_sq_dist + other.passed_sq_dist) {
+                        if geom::zero_epsilon((other.goal_sq_dist + other.passed_sq_dist) - (self.goal_sq_dist + self.passed_sq_dist)) {
                             Ordering::Equal
                         } else {
                             Ordering::Greater
                         }
-                    } else if self.goal_sq_dist > other.goal_sq_dist {
-                        if geom::zero_epsilon(self.goal_sq_dist - other.goal_sq_dist) {
+                    } else if (self.goal_sq_dist + self.passed_sq_dist) > (other.goal_sq_dist + other.passed_sq_dist) {
+                        if geom::zero_epsilon((self.goal_sq_dist + self.passed_sq_dist) - (other.goal_sq_dist + other.passed_sq_dist)) {
                             Ordering::Equal
                         } else {
                             Ordering::Less
@@ -342,8 +349,8 @@ mod test {
             router.route(&rt(50., 150., 60., 160.), 2., sg(55., 155., 255., 155.), &mut cache).map(|r| r.hops),
             Some([
                 Point { x: AxisX { x: 55. }, y: AxisY { y: 155. } },
-                Point { x: AxisX { x: 93. }, y: AxisY { y: 307. } },
-                Point { x: AxisX { x: 167. }, y: AxisY { y: 307. } },
+                Point { x: AxisX { x: 93. }, y: AxisY { y: 93. } },
+                Point { x: AxisX { x: 167. }, y: AxisY { y: 93. } },
                 Point { x: AxisX { x: 255. }, y: AxisY { y: 155. } },
             ].as_ref())
         );
@@ -361,7 +368,7 @@ mod test {
             router.route(&rt(260., 140., 300., 180.), 2., sg(280., 160., 580., 340.), &mut cache).map(|r| r.hops),
             Some([
                 Point { x: AxisX { x: 280. }, y: AxisY { y: 160. } },
-                Point { x: AxisX { x: 182. }, y: AxisY { y: 78. } },
+                Point { x: AxisX { x: 378. }, y: AxisY { y: 78. } },
                 Point { x: AxisX { x: 482. }, y: AxisY { y: 78. } },
                 Point { x: AxisX { x: 580. }, y: AxisY { y: 340. } },
             ].as_ref())
@@ -378,9 +385,9 @@ mod test {
             router.route(&rt(10., 10., 14., 14.), 2., sg(12., 12., 32., 32.), &mut cache).map(|r| r.hops),
             Some([
                 Point { x: AxisX { x: 12. }, y: AxisY { y: 12. } },
-                Point { x: AxisX { x: 30.875 }, y: AxisY { y: 16. } },
-                Point { x: AxisX { x: 39.6875 }, y: AxisY { y: 16. } },
-                Point { x: AxisX { x: 24.125 }, y: AxisY { y: 16. } },
+                Point { x: AxisX { x: 24.375 }, y: AxisY { y: 16. } },
+                Point { x: AxisX { x: 36.798913043478265 }, y: AxisY { y: 16. } },
+                Point { x: AxisX { x: 23.335526315789473 }, y: AxisY { y: 16. } },
                 Point { x: AxisX { x: 32. }, y: AxisY { y: 32. } },
             ].as_ref())
         );
