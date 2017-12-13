@@ -135,6 +135,7 @@ pub fn collides(form_a: &Option<VehicleType>, form_b: &Option<VehicleType>) -> b
     }
 }
 
+#[allow(dead_code)]
 pub fn max_speed(game: &Game, form: &Option<VehicleType>) -> f64 {
     match form {
         &Some(VehicleType::Arrv) => game.arrv_speed,

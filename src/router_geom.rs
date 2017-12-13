@@ -997,4 +997,54 @@ mod test {
             .collect();
         assert_eq!(intersects, vec![]);
     }
+
+    #[test]
+    fn kdtree_trap() {
+        let shapes = vec![
+            MotionShape::new(geom::Rect {
+                lt: geom::Point { x: geom::axis_x(100.), y: geom::axis_y(100.), },
+                rb: geom::Point { x: geom::axis_x(160.), y: geom::axis_y(300.), },
+            }, None, Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 0., }),
+            MotionShape::new(geom::Rect {
+                lt: geom::Point { x: geom::axis_x(160.), y: geom::axis_y(240.), },
+                rb: geom::Point { x: geom::axis_x(400.), y: geom::axis_y(300.), },
+            }, None, Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 0., }),
+            MotionShape::new(geom::Rect {
+                lt: geom::Point { x: geom::axis_x(400.), y: geom::axis_y(100.), },
+                rb: geom::Point { x: geom::axis_x(460.), y: geom::axis_y(300.), },
+            }, None, Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 0., }),
+        ];
+        let tree = kdtree::KdvTree::build(Some(Axis::X).into_iter().chain(Some(Axis::Y).into_iter()).chain(Some(Axis::Time)), shapes);
+        let moving_shape = MotionShape::new(
+            geom::Rect {
+                lt: geom::Point { x: geom::axis_x(260.), y: geom::axis_y(140.), },
+                rb: geom::Point { x: geom::axis_x(300.), y: geom::axis_y(180.), },
+            },
+            Some((geom::Segment {
+                src: geom::Point { x: geom::axis_x(280.), y: geom::axis_y(160.), },
+                dst: geom::Point { x: geom::axis_x(580.), y: geom::axis_y(340.), },
+            }, 2.)),
+            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+        );
+        let mut collision_bbox: Option<geom::Rect> = None;
+        for intersection in tree.intersects(&moving_shape) {
+            let intersection_proj = geom::Rect {
+                lt: intersection.shape_fragment.min_corner().p2d,
+                rb: intersection.shape_fragment.max_corner().p2d,
+            };
+            if let Some(ref mut bbox) = collision_bbox {
+                use self::geom::{axis_x, axis_y};
+                bbox.lt.x = axis_x(bbox.lt.x.x.min(intersection_proj.lt.x.x));
+                bbox.lt.y = axis_y(bbox.lt.y.y.min(intersection_proj.lt.y.y));
+                bbox.rb.x = axis_x(bbox.rb.x.x.max(intersection_proj.rb.x.x));
+                bbox.rb.y = axis_y(bbox.rb.y.y.max(intersection_proj.rb.y.y));
+            } else {
+                collision_bbox = Some(intersection_proj);
+            }
+        }
+        assert_eq!(collision_bbox, Some(geom::Rect {
+            lt: geom::Point { x: geom::AxisX { x: 358.75 }, y: geom::AxisY { y: 192.8125 } },
+            rb: geom::Point { x: geom::AxisX { x: 460. }, y: geom::AxisY { y: 300. } },
+        }));
+    }
 }
