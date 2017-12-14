@@ -45,7 +45,7 @@ impl Overmind {
                         (form.kind().clone(), common::max_speed(game, form.kind()), rect, fx)
                     };
                     let router =
-                        init_router(&mut space, entry.ally_form_id, ally_kind, Some(enemy_form_id), allies, enemies, game);
+                        init_router(&mut space, entry.ally_form_id, ally_kind, &rect, Some(enemy_form_id), allies, enemies, game);
                     let dst = enemies.get_by_id(enemy_form_id).unwrap().bounding_box().mass;
                     // debug!(" ;; building attack route for {:?} speed {} as {:?}", rect, speed, geom::Segment { src, dst, });
                     if let Some(route) = router.route(&rect, speed, geom::Segment { src, dst, }, &mut router_cache) {
@@ -67,7 +67,7 @@ impl Overmind {
                         (form.kind().clone(), common::max_speed(game, form.kind()), rect, fx)
                     };
                     let router =
-                        init_router(&mut space, entry.ally_form_id, ally_kind, None, allies, enemies, game);
+                        init_router(&mut space, entry.ally_form_id, ally_kind, &rect, None, allies, enemies, game);
                     // debug!(" ;; building scout route for {:?} speed {} as {:?}", rect, speed, geom::Segment { src, dst, });
                     if let Some(route) = router.route(&rect, speed, geom::Segment { src, dst, }, &mut router_cache) {
                         debug!("ally form {} of {:?} ACCEPTED scout {:?} (total {} hops)",
@@ -243,6 +243,7 @@ fn init_router(
     space: &mut Vec<(geom::Rect, Option<(geom::Segment, f64)>)>,
     ally_form_id: FormationId,
     ally_kind: Option<VehicleType>,
+    ally_rect: &geom::Rect,
     ignore_enemy_form_id: Option<FormationId>,
     allies: &mut Formations,
     enemies: &mut Formations,
@@ -274,10 +275,23 @@ fn init_router(
             } else {
                 let rect = &form.bounding_box().rect;
                 let range = combat_his.attack_range;
-                Some(geom::Rect {
-                    lt: geom::Point { x: geom::axis_x(rect.lt.x.x - range), y: geom::axis_y(rect.lt.y.y - range), },
-                    rb: geom::Point { x: geom::axis_x(rect.rb.x.x + range), y: geom::axis_y(rect.rb.y.y + range), },
-                })
+                let mut side_x = (rect.rb.x - rect.lt.x).x + range * 2.;
+                let mut side_y = (rect.rb.y - rect.lt.y).y + range * 2.;
+                loop {
+                    let test_rect = geom::Rect {
+                        lt: geom::Point { x: geom::axis_x(rect.mid_x().x - side_x * 0.5), y: geom::axis_y(rect.mid_y().y - side_y * 0.5), },
+                        rb: geom::Point { x: geom::axis_x(rect.mid_x().x + side_x * 0.5), y: geom::axis_y(rect.mid_y().y + side_y * 0.5), },
+                    };
+                    if ally_rect.contains(&test_rect) {
+                        break;
+                    }
+                    if !ally_rect.intersects(&test_rect) {
+                        return Some(test_rect);
+                    }
+                    side_x *= 0.5;
+                    side_y *= 0.5;
+                }
+                None
             }
         }
     });
