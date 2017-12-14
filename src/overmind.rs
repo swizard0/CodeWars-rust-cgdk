@@ -155,12 +155,12 @@ impl Eq for Idea { }
 
 fn check_stopped<'a>(form: &mut FormationRef<'a>, world: &World) {
     // check if vehicle is stopped while moving
-    if let &mut CurrentRoute::InProgress(..) = form.current_route() {
-        let make_idle = {
+    if let &mut CurrentRoute::InProgress { start_tick, .. } = form.current_route() {
+        let is_idle = {
             let (dvts, ..) = form.dvt_sums(world.tick_index);
             dvts.d_x == 0. && dvts.d_y == 0.
         };
-        if make_idle {
+        if is_idle || world.tick_index - start_tick >= consts::ROUTE_RESET_TICKS {
             debug!("@ {} formation {} of {:?} ARRIVED at next hop", world.tick_index, form.id, form.kind());
             ::std::mem::replace(form.current_route(), CurrentRoute::Idle);
         }

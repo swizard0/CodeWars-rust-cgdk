@@ -65,13 +65,17 @@ impl Visualizer {
                     break,
                 Trigger::PaintingDone =>
                     (),
-                Trigger::PauseAfter1 | Trigger::PauseAfter10 if world.tick_index < self.pause_tick =>
+                Trigger::PauseAfter1 | Trigger::PauseAfter10 | Trigger::PauseAfter100 if world.tick_index < self.pause_tick =>
                     (),
                 Trigger::PauseAfter1 => {
                     self.pause_tick += 1;
                     break;
                 },
                 Trigger::PauseAfter10 => {
+                    self.pause_tick += 10;
+                    break;
+                },
+                Trigger::PauseAfter100 => {
                     self.pause_tick += 10;
                     break;
                 },
@@ -88,7 +92,7 @@ impl Visualizer {
                 &mut CurrentRoute::Idle =>
                     (),
                 // println!("no route for {} of {:?}", form_id, kind);
-                &mut CurrentRoute::Ready(ref hops) | &mut CurrentRoute::InProgress(ref hops) => {
+                &mut CurrentRoute::Ready(ref hops) | &mut CurrentRoute::InProgress { ref hops, .. } => {
                     // println!("got route for {} of {:?} = {:?}", form_id, kind, hops);
                     let mut iter = hops.iter();
                     if let Some(mut ps) = iter.next() {
@@ -186,6 +190,8 @@ fn painter_loop(tx: &mpsc::Sender<Trigger>, rx: &mpsc::Receiver<DrawPacket>) {
                 tx.send(Trigger::PauseAfter1).unwrap(),
             Some(Button::Keyboard(Key::M)) =>
                 tx.send(Trigger::PauseAfter10).unwrap(),
+            Some(Button::Keyboard(Key::K)) =>
+                tx.send(Trigger::PauseAfter100).unwrap(),
             _ =>
                 (),
         }
@@ -245,6 +251,7 @@ enum Trigger {
     PaintingDone,
     PauseAfter1,
     PauseAfter10,
+    PauseAfter100,
 }
 
 struct DrawPacket {

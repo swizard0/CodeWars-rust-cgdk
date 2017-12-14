@@ -204,7 +204,7 @@ impl<'a> Drop for FormationBuilder<'a> {
 pub enum CurrentRoute {
     Idle,
     Ready(Vec<Point>),
-    InProgress(Vec<Point>),
+    InProgress { hops: Vec<Point>, start_tick: i32, },
 }
 
 impl CurrentRoute {
@@ -214,7 +214,7 @@ impl CurrentRoute {
                 None,
             &CurrentRoute::Ready(ref hops) =>
                 hops.get(1),
-            &CurrentRoute::InProgress(ref hops) =>
+            &CurrentRoute::InProgress { ref hops, .. } =>
                 hops.get(1),
         }
     }
@@ -223,7 +223,7 @@ impl CurrentRoute {
         match self {
             &CurrentRoute::Idle =>
                 None,
-            &CurrentRoute::Ready(ref hops) | &CurrentRoute::InProgress(ref hops) =>
+            &CurrentRoute::Ready(ref hops) | &CurrentRoute::InProgress { ref hops, .. } =>
                 hops.split_first().and_then(|(&src, rest)| rest.split_first().map(|(&dst, _)| Segment { src, dst, })),
         }
     }

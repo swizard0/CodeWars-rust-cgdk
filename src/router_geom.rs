@@ -603,7 +603,7 @@ impl MotionShape {
                 Some((bbox_l, bbox_r))
             },
             (&Axis::Time, &Coord::Time(TimeMotion::Moment(time)), Some((speed_x, speed_y))) => {
-                let cut_time = TimeMotion::Moment(time);
+                let cut_time = TimeMotion::make_mid(time, &fragment.min.time, &fragment.max.time, fragment.min.time);
                 assert!(cut_time >= fragment.min.time);
                 assert!(cut_time <= fragment.max.time);
                 let fragment_time_max = fragment.max.time.timestamp();

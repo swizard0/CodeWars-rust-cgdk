@@ -1,5 +1,5 @@
 use std::mem;
-use model::{Action, ActionType, Player, Game};
+use model::{Action, ActionType, Player, World, Game};
 use super::formation::{FormationId, Formations, CurrentRoute};
 
 pub struct Progamer {
@@ -21,6 +21,7 @@ impl Progamer {
         maybe_move: Option<(FormationId, CurrentRoute)>,
         formations: &mut Formations,
         me: &Player,
+        world: &World,
         game: &Game,
         action: &mut Action
     )
@@ -53,7 +54,7 @@ impl Progamer {
                 action.y = (goal.y - fm.y).y;
             }
             self.pending = None;
-            mem::replace(form.current_route(), CurrentRoute::InProgress(hops));
+            mem::replace(form.current_route(), CurrentRoute::InProgress { hops, start_tick: world.tick_index, });
         } else {
             // formation is not selected
             let form_id = form.id;

@@ -78,7 +78,7 @@ impl Strategy for MyStrategy {
         }
         self.update_formations(me, world);
         let maybe_move = self.consult_overmind(world, game);
-        self.progamer.maintain_apm(maybe_move, &mut self.allies, me, game, action);
+        self.progamer.maintain_apm(maybe_move, &mut self.allies, me, world, game, action);
 
         vis.tick(me, world, game, action, &mut self.allies, &mut self.enemies);
     }
@@ -105,16 +105,35 @@ impl MyStrategy {
             self.enemies.update(update, world.tick_index);
         }
 
-        // split too sparse enemy formations
         loop {
             {
                 let mut forms_iter = self.enemies.iter();
                 while let Some(mut form) = forms_iter.next() {
+                    // split too sparse enemy formations
                     let density = form.bounding_box().density;
                     if density < consts::ENEMY_SPLIT_DENSITY {
                         debug!("splitting enemy formation {} of {} {:?} (density = {})", form.id, form.size(), form.kind(), density);
                         self.split_buf.push(form.id);
                     }
+                    // predict a route
+                    let src = form.bounding_box().mass;
+                    let maybe_dst = {
+                        let (dvts, ..) = form.dvt_sums(world.tick_index);
+                        if dvts.d_x == 0. && dvts.d_y == 0. {
+                            None
+                        } else {
+                            let factor = consts::ENEMY_PREDICT_ROUTE_LEN / ((dvts.d_x * dvts.d_x) + (dvts.d_y * dvts.d_y)).sqrt();
+                            Some(geom::Point {
+                                x: geom::axis_x(src.x.x + dvts.d_x * factor),
+                                y: geom::axis_y(src.y.y + dvts.d_y * factor),
+                            })
+                        }
+                    };
+                    *form.current_route() = if let Some(dst) = maybe_dst {
+                        CurrentRoute::InProgress { hops: vec![src, dst], start_tick: 0, }
+                    } else {
+                        CurrentRoute::Idle
+                    };
                 }
             }
             if self.split_buf.is_empty() {

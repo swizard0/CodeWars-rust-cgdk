@@ -2,8 +2,11 @@ pub const ROUTER_X_MIN_DIFF: f64 = 64.;
 pub const ROUTER_Y_MIN_DIFF: f64 = 64.;
 pub const ROUTER_TIME_MIN_DIFF: f64 = 64.;
 pub const ROUTER_BYPASS_PAD: f64 = 3.;
+pub const ROUTE_RESET_TICKS: i32 = 128;
 // pub const ALLY_SPLIT_DENSITY: f64 = 0.15;
 pub const ENEMY_SPLIT_DENSITY: f64 = 0.15;
+pub const ENEMY_PREDICT_ROUTE_LEN: f64 = 256.;
+
 // pub const COMPACT_DENSITY: f64 = 0.03;
 // pub const ESCAPE_BOUNCE_FACTOR: f64 = 80.0;
 // pub const SPLIT_MAX_FORMS: usize = 12;
