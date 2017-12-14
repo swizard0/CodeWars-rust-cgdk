@@ -77,7 +77,7 @@ impl Strategy for MyStrategy {
             debug!("world is {} x {}", world.width, world.height);
         }
         self.update_formations(me, world);
-        let maybe_move = self.consult_overmind(game);
+        let maybe_move = self.consult_overmind(world, game);
         self.progamer.maintain_apm(maybe_move, &mut self.allies, me, game, action);
 
         vis.tick(me, world, game, action, &mut self.allies, &mut self.enemies);
@@ -126,7 +126,7 @@ impl MyStrategy {
         }
     }
 
-    fn consult_overmind(&mut self, game: &Game) -> Option<(FormationId, CurrentRoute)> {
+    fn consult_overmind(&mut self, world: &World, game: &Game) -> Option<(FormationId, CurrentRoute)> {
         let rng = self.rng.get_or_insert_with(|| {
             let a = (game.random_seed & 0xFFFFFFFF) as u32;
             let b = ((game.random_seed >> 32) & 0xFFFFFFFF) as u32;
@@ -136,7 +136,7 @@ impl MyStrategy {
             SeedableRng::from_seed(seed)
         });
 
-        self.overmind.decree(&mut self.allies, &mut self.enemies, game, rng)
+        self.overmind.decree(&mut self.allies, &mut self.enemies, world, game, rng)
     }
 }
 

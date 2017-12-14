@@ -280,30 +280,28 @@ use std::cmp::Ordering;
 
 impl Ord for Step {
     fn cmp(&self, other: &Step) -> Ordering {
-        other.hops
-            .cmp(&self.hops)
-            .then_with(|| match (&self.movement, &other.movement) {
-                (&Movement::TowardsGoal, &Movement::TowardsGoal) | (&Movement::Bypass { .. }, &Movement::Bypass { .. }) =>
-                    if (self.goal_sq_dist + self.passed_sq_dist) < (other.goal_sq_dist + other.passed_sq_dist) {
-                        if geom::zero_epsilon((other.goal_sq_dist + other.passed_sq_dist) - (self.goal_sq_dist + self.passed_sq_dist)) {
-                            Ordering::Equal
-                        } else {
-                            Ordering::Greater
-                        }
-                    } else if (self.goal_sq_dist + self.passed_sq_dist) > (other.goal_sq_dist + other.passed_sq_dist) {
-                        if geom::zero_epsilon((self.goal_sq_dist + self.passed_sq_dist) - (other.goal_sq_dist + other.passed_sq_dist)) {
-                            Ordering::Equal
-                        } else {
-                            Ordering::Less
-                        }
-                    } else {
+        match (&self.movement, &other.movement) {
+            (&Movement::TowardsGoal, &Movement::TowardsGoal) | (&Movement::Bypass { .. }, &Movement::Bypass { .. }) =>
+                if (self.goal_sq_dist + self.passed_sq_dist) < (other.goal_sq_dist + other.passed_sq_dist) {
+                    if geom::zero_epsilon((other.goal_sq_dist + other.passed_sq_dist) - (self.goal_sq_dist + self.passed_sq_dist)) {
                         Ordering::Equal
-                    },
+                    } else {
+                        Ordering::Greater
+                    }
+                } else if (self.goal_sq_dist + self.passed_sq_dist) > (other.goal_sq_dist + other.passed_sq_dist) {
+                    if geom::zero_epsilon((self.goal_sq_dist + self.passed_sq_dist) - (other.goal_sq_dist + other.passed_sq_dist)) {
+                        Ordering::Equal
+                    } else {
+                        Ordering::Less
+                    }
+                    } else {
+                    Ordering::Equal
+                },
                 (&Movement::TowardsGoal, &Movement::Bypass { .. }) =>
-                    Ordering::Greater,
+                Ordering::Greater,
                 (&Movement::Bypass { .. }, &Movement::TowardsGoal) =>
-                    Ordering::Less,
-            })
+                Ordering::Less,
+        }.then(other.hops.cmp(&self.hops))
     }
 }
 
@@ -427,10 +425,21 @@ mod test {
             router.route(&rt(10., 10., 14., 14.), 2., sg(12., 12., 32., 32.), &mut cache).map(|r| r.hops),
             Some([
                 Point { x: AxisX { x: 12. }, y: AxisY { y: 12. } },
-                Point { x: AxisX { x: 23.375 }, y: AxisY { y: 16. } },
-                Point { x: AxisX { x: 36.589285714285715 }, y: AxisY { y: 16. } },
-                Point { x: AxisX { x: 23.335526315789473 }, y: AxisY { y: 16. } },
-                Point { x: AxisX { x: 32. }, y: AxisY { y: 32. } },
+                Point { x: AxisX { x: 16.875 }, y: AxisY { y: 16. } },
+                Point { x: AxisX { x: 20.625 }, y: AxisY { y: 16. } },
+                Point { x: AxisX { x: 21.682692307692307 }, y: AxisY { y: 16. } },
+                Point { x: AxisX { x: 22.045454545454547 }, y: AxisY { y: 16. } },
+                Point { x: AxisX { x: 18.14673913043478 }, y: AxisY { y: 16. } },
+                Point { x: AxisX { x: 20.6875 }, y: AxisY { y: 16. } },
+                Point { x: AxisX { x: 25.125 }, y: AxisY { y: 16. } },
+                Point { x: AxisX { x: 26.463068181818183 }, y: AxisY { y: 16. } },
+                Point { x: AxisX { x: 23.017045454545453 }, y: AxisY { y: 16. } },
+                Point { x: AxisX { x: 26.875 }, y: AxisY { y: 16. } },
+                Point { x: AxisX { x: 27.96875 }, y: AxisY { y: 16. } },
+                Point { x: AxisX { x: 27.991071428571427 }, y: AxisY { y: 16. } },
+                Point { x: AxisX { x: 23.991071428571427 }, y: AxisY { y: 16. } },
+                Point { x: AxisX { x: 23.8125 }, y: AxisY { y: 20. } },
+                Point { x: AxisX { x: 32. }, y: AxisY { y: 32. } }
             ].as_ref())
         );
     }
@@ -492,8 +501,10 @@ mod test {
             router.route(&rt(10., 138., 14., 142.), 2., sg(12., 140., 82., 140.), &mut cache).map(|r| r.hops),
             Some([
                 Point { x: AxisX { x: 12. }, y: AxisY { y: 140. } },
-                Point { x: AxisX { x: 45.114583333333336 }, y: AxisY { y: 106. } },
-                Point { x: AxisX { x: 71.8576388888889 }, y: AxisY { y: 106. } },
+                Point { x: AxisX { x: 45.114583333333336 }, y: AxisY { y: 134. } },
+                Point { x: AxisX { x: 43.37847222222223 }, y: AxisY { y: 106. } },
+                Point { x: AxisX { x: 62.56575520833333 }, y: AxisY { y: 106. } },
+                Point { x: AxisX { x: 66.1875 }, y: AxisY { y: 130. } },
                 Point { x: AxisX { x: 82. }, y: AxisY { y: 140. } },
             ].as_ref())
         );

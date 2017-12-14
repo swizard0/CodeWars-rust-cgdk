@@ -1,6 +1,6 @@
 use std::collections::BinaryHeap;
 
-use model::{Game, VehicleType};
+use model::{World, Game, VehicleType};
 use super::{consts, geom, common, router, router_geom};
 use super::rand::Rng;
 use super::formation::{FormationId, FormationRef, Formations, CurrentRoute};
@@ -20,6 +20,7 @@ impl Overmind {
         &mut self,
         allies: &mut Formations,
         enemies: &mut Formations,
+        world: &World,
         game: &Game,
         rng: &mut R
     )
@@ -27,7 +28,7 @@ impl Overmind {
         where R: Rng
     {
         self.decision_queue.clear();
-        self.analyze(allies, enemies, game, rng);
+        self.analyze(allies, enemies, world, game, rng);
 
         let mut space = Vec::new();
         let mut router_cache = router::RouterCache::new();
@@ -82,11 +83,12 @@ impl Overmind {
         None
     }
 
-    fn analyze<R>(&mut self, allies: &mut Formations, enemies: &mut Formations, game: &Game, rng: &mut R)
+    fn analyze<R>(&mut self, allies: &mut Formations, enemies: &mut Formations, world: &World, game: &Game, rng: &mut R)
         where R: Rng
     {
         let mut forms_iter = allies.iter();
         while let Some(mut form) = forms_iter.next() {
+            check_stopped(&mut form, world);
             if let CurrentRoute::Idle = *form.current_route() {
                 think_about_attack(&mut self.decision_queue, &mut form, enemies, game);
                 think_about_scout(&mut self.decision_queue, &mut form, game, rng);
@@ -150,6 +152,20 @@ impl PartialOrd for Idea {
 }
 
 impl Eq for Idea { }
+
+fn check_stopped<'a>(form: &mut FormationRef<'a>, world: &World) {
+    // check if vehicle is stopped while moving
+    if let &mut CurrentRoute::InProgress(..) = form.current_route() {
+        let make_idle = {
+            let (dvts, ..) = form.dvt_sums(world.tick_index);
+            dvts.d_x == 0. && dvts.d_y == 0.
+        };
+        if make_idle {
+            debug!("@ {} formation {} of {:?} ARRIVED at next hop", world.tick_index, form.id, form.kind());
+            ::std::mem::replace(form.current_route(), CurrentRoute::Idle);
+        }
+    }
+}
 
 fn think_about_attack<'a>(
     decision_queue: &mut BinaryHeap<QueueEntry>,

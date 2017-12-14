@@ -282,14 +282,6 @@ impl Formation {
         unit.vehicle.groups = update.groups.clone();
         // invalidate cached bbox
         self.bbox = None;
-        // check if vehicle is stopped while moving
-        if let CurrentRoute::InProgress(..) = self.current_route {
-            if unit.dvt.d_x == 0. && unit.dvt.d_y == 0. {
-                debug!("@ {} formation {} of {:?} ARRIVED at next hop {:?}",
-                       tick, unit.form_id, self.kind, self.current_route.next_hop());
-                self.current_route = CurrentRoute::Idle;
-            }
-        }
         // check if vehicle is destroyed
         if unit.vehicle.durability > 0 {
             // vehicle is alive
