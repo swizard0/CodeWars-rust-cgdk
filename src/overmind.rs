@@ -46,7 +46,7 @@ impl Overmind {
                     let router =
                         init_router(&mut space, entry.ally_form_id, ally_kind, Some(enemy_form_id), allies, enemies, game);
                     let dst = enemies.get_by_id(enemy_form_id).unwrap().bounding_box().mass;
-                    // debug!(" ;; building attack route for {:?} speed {} as {:?}", rect, speed, geom::Segment { src, dst, });
+                    debug!(" ;; building attack route for {:?} speed {} as {:?}", rect, speed, geom::Segment { src, dst, });
                     if let Some(route) = router.route(&rect, speed, geom::Segment { src, dst, }, &mut router_cache) {
                         let mut form = allies.get_by_id(entry.ally_form_id).unwrap();
                         let target = route.hops[1];
@@ -70,7 +70,7 @@ impl Overmind {
                     };
                     let router =
                         init_router(&mut space, entry.ally_form_id, ally_kind, None, allies, enemies, game);
-                    // debug!(" ;; building scout route for {:?} speed {} as {:?}", rect, speed, geom::Segment { src, dst, });
+                    debug!(" ;; building scout route for {:?} speed {} as {:?}", rect, speed, geom::Segment { src, dst, });
                     if let Some(route) = router.route(&rect, speed, geom::Segment { src, dst, }, &mut router_cache) {
                         let mut form = allies.get_by_id(entry.ally_form_id).unwrap();
                         let target = route.hops[1];
@@ -229,7 +229,7 @@ fn prepare_space<F>(
                 .and_then(|hops| hops.split_first())
                 .and_then(|(&src, rest)| rest.split_first().map(|(&dst, _)| geom::Segment { src, dst, }));
             let route = route.map(|r| (r, common::max_speed(game, form.kind())));
-            // debug!(" ;; commit obstacle {:?} with {:?}", bounding_rect, route);
+            debug!(" ;; commit obstacle {:?} with {:?}", bounding_rect, route);
             space.push((bounding_rect, route));
         }
     }
@@ -246,7 +246,7 @@ fn init_router(
 )
     -> router::Router
 {
-    // debug!(" ;; init routing form {} of {:?}", ally_form_id, ally_kind);
+    debug!(" ;; init routing form {} of {:?}", ally_form_id, ally_kind);
     prepare_space(space, allies, game, |form| {
         if form.id == ally_form_id || !common::collides(&ally_kind, form.kind()) {
             None
