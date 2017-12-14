@@ -1,24 +1,23 @@
 use model::{VehicleType, Game};
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub enum VehicleForm {
-    Aircraft,
-    Ground,
-}
+// #[derive(Clone, Copy, PartialEq, Debug)]
+// pub enum VehicleForm {
+//     Aircraft,
+//     Ground,
+// }
 
-impl VehicleForm {
-    pub fn check(form: &Option<VehicleType>) -> Option<VehicleForm> {
-        match form {
-            &Some(VehicleType::Fighter) | &Some(VehicleType::Helicopter) =>
-                Some(VehicleForm::Aircraft),
-            &Some(VehicleType::Arrv) | &Some(VehicleType::Ifv) | &Some(VehicleType::Tank) =>
-                Some(VehicleForm::Ground),
-            &None =>
-                None,
-        }
-    }
-}
-
+// impl VehicleForm {
+//     pub fn check(form: &Option<VehicleType>) -> Option<VehicleForm> {
+//         match form {
+//             &Some(VehicleType::Fighter) | &Some(VehicleType::Helicopter) =>
+//                 Some(VehicleForm::Aircraft),
+//             &Some(VehicleType::Arrv) | &Some(VehicleType::Ifv) | &Some(VehicleType::Tank) =>
+//                 Some(VehicleForm::Ground),
+//             &None =>
+//                 None,
+//         }
+//     }
+// }
 
 #[derive(Clone, Debug)]
 pub struct CombatInfo {
@@ -135,7 +134,6 @@ pub fn collides(form_a: &Option<VehicleType>, form_b: &Option<VehicleType>) -> b
     }
 }
 
-#[allow(dead_code)]
 pub fn max_speed(game: &Game, form: &Option<VehicleType>) -> f64 {
     match form {
         &Some(VehicleType::Arrv) => game.arrv_speed,

@@ -4,7 +4,6 @@ use super::rand::Rng;
 use model::{Vehicle, VehicleUpdate, VehicleType};
 use super::derivatives::Derivatives;
 use super::geom::{axis_x, axis_y, Point, Rect, Boundary};
-use super::tactic::Plan;
 use super::side::Side;
 
 pub type FormationId = i32;
@@ -143,16 +142,8 @@ impl<'a> FormationRef<'a> {
         (&self.form.dvt_s, form_size)
     }
 
-    pub fn stuck(&mut self) -> &mut bool {
-        &mut self.form.stuck
-    }
-
     pub fn kind(&self) -> &Option<VehicleType> {
         &self.form.kind
-    }
-
-    pub fn current_plan(&mut self) -> &mut Option<Plan> {
-        &mut self.form.current_plan
     }
 
     pub fn current_route(&mut self) -> &mut Option<Vec<Point>> {
@@ -214,8 +205,6 @@ struct Formation {
     vehicles: Vec<i64>,
     bbox: Option<Boundary>,
     update_tick: i32,
-    stuck: bool,
-    current_plan: Option<Plan>,
     current_route: Option<Vec<Point>>,
     dvt_s: Derivatives,
     dur_max: i32,
@@ -235,8 +224,6 @@ impl Formation {
             vehicles: Vec::new(),
             bbox: None,
             update_tick: tick,
-            stuck: false,
-            current_plan: None,
             current_route: None,
             dvt_s: Derivatives::new(),
             dur_max: 0,

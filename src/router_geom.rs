@@ -146,7 +146,7 @@ pub struct MotionShape {
     limits: Limits,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct RouteStats {
     pub speed_x: f64,
     pub speed_y: f64,
@@ -730,50 +730,29 @@ impl kdtree::Shape for MotionShape {
     }
 }
 
-pub fn intersection_bounding_box<'t, I>(intersections_it: I) -> Option<BoundingBox>
-    where I: Iterator<Item = kdtree::Intersection<'t, MotionShape, BoundingBox, BoundingBox>>
-{
-    let mut collision_bbox: Option<BoundingBox> = None;
-    for intersection in intersections_it {
-        let intersection_proj = intersection.shape_fragment;
-        if let Some(ref mut bbox) = collision_bbox {
-            use self::geom::{axis_x, axis_y};
-            bbox.min.p2d.x = axis_x(bbox.min.p2d.x.x.min(intersection_proj.min.p2d.x.x));
-            bbox.min.p2d.y = axis_y(bbox.min.p2d.y.y.min(intersection_proj.min.p2d.y.y));
-            if intersection_proj.min.time < bbox.min.time {
-                bbox.min.time = intersection_proj.min.time;
-            }
-            bbox.max.p2d.x = axis_x(bbox.max.p2d.x.x.max(intersection_proj.max.p2d.x.x));
-            bbox.max.p2d.y = axis_y(bbox.max.p2d.y.y.max(intersection_proj.max.p2d.y.y));
-            if intersection_proj.max.time > bbox.max.time {
-                bbox.max.time = intersection_proj.max.time;
-            }
-        } else {
-            collision_bbox = Some(intersection_proj.clone());
-        }
-    }
-    collision_bbox
-}
-
-pub struct ShapeIntersection<'t> {
-    pub shape: &'t MotionShape,
+pub struct ShapeIntersection {
+    pub shape_ptr: *const MotionShape,
+    pub source_rect: geom::Rect,
+    pub route_stats: Option<RouteStats>,
     pub time: f64,
     pub count: usize,
 }
 
-pub fn intersection_shapes<'q, 't, I>(intersections_it: I, cache: &'q mut Vec<ShapeIntersection<'t>>) -> &'q [ShapeIntersection<'t>]
+pub fn intersection_shapes<'q, 't, I>(intersections_it: I, cache: &'q mut Vec<ShapeIntersection>) -> &'q [ShapeIntersection]
     where I: Iterator<Item = kdtree::Intersection<'t, MotionShape, BoundingBox, BoundingBox>>
 {
     cache.clear();
     for intersection in intersections_it {
         let mid_time = (intersection.shape_fragment.min.time.timestamp() + intersection.shape_fragment.max.time.timestamp()) / 2.;
-        if let Some(index) = cache.iter().position(|e| ::std::ptr::eq(e.shape, intersection.shape)) {
+        if let Some(index) = cache.iter().position(|e| e.shape_ptr == intersection.shape as *const _) {
             let entry = &mut cache[index];
             entry.time += mid_time;
             entry.count += 1;
         } else {
             cache.push(ShapeIntersection {
-                shape: intersection.shape,
+                shape_ptr: intersection.shape as *const _,
+                source_rect: intersection.shape.source_rect().clone(),
+                route_stats: intersection.shape.route_stats().cloned(),
                 time: mid_time,
                 count: 1,
             });
@@ -790,6 +769,31 @@ mod test {
     use super::super::geom;
     use super::super::kdtree::{self, Shape, BoundingBox, Point};
     use super::{Axis, Coord, TimeMotion, MotionShape, Limits};
+
+    fn intersection_bounding_box<'t, I>(intersections_it: I) -> Option<super::BoundingBox>
+        where I: Iterator<Item = kdtree::Intersection<'t, MotionShape, super::BoundingBox, super::BoundingBox>>
+    {
+        let mut collision_bbox: Option<super::BoundingBox> = None;
+        for intersection in intersections_it {
+            let intersection_proj = intersection.shape_fragment;
+            if let Some(ref mut bbox) = collision_bbox {
+                use self::geom::{axis_x, axis_y};
+                bbox.min.p2d.x = axis_x(bbox.min.p2d.x.x.min(intersection_proj.min.p2d.x.x));
+                bbox.min.p2d.y = axis_y(bbox.min.p2d.y.y.min(intersection_proj.min.p2d.y.y));
+                if intersection_proj.min.time < bbox.min.time {
+                    bbox.min.time = intersection_proj.min.time;
+                }
+                bbox.max.p2d.x = axis_x(bbox.max.p2d.x.x.max(intersection_proj.max.p2d.x.x));
+                bbox.max.p2d.y = axis_y(bbox.max.p2d.y.y.max(intersection_proj.max.p2d.y.y));
+                if intersection_proj.max.time > bbox.max.time {
+                    bbox.max.time = intersection_proj.max.time;
+                }
+            } else {
+                collision_bbox = Some(intersection_proj.clone());
+            }
+        }
+        collision_bbox
+    }
 
     #[test]
     fn motion_shape_new_no_route() {
@@ -1065,7 +1069,7 @@ mod test {
             Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
         );
         assert_eq!(
-            super::intersection_bounding_box(tree.intersects(&moving_shape)),
+            intersection_bounding_box(tree.intersects(&moving_shape)),
             Some(super::BoundingBox {
                 min: super::Point { p2d: geom::Point { x: geom::AxisX { x: 100. }, y: geom::AxisY { y: 125. } }, time: TimeMotion::Moment(0.) },
                 max: super::Point { p2d: geom::Point { x: geom::AxisX { x: 115. }, y: geom::AxisY { y: 150. } }, time: TimeMotion::Stop(0.) },
@@ -1095,7 +1099,7 @@ mod test {
             26.001201895297072,
         );
         assert_eq!(
-            super::intersection_bounding_box(tree.intersects(&moving_shape)),
+            intersection_bounding_box(tree.intersects(&moving_shape)),
             Some(super::BoundingBox {
                 min: super::Point { p2d: geom::Point { x: geom::AxisX { x: 100. }, y: geom::AxisY { y: 175. } }, time: TimeMotion::Moment(0.) },
                 max: super::Point { p2d: geom::Point { x: geom::AxisX { x: 141.25 }, y: geom::AxisY { y: 200. } }, time: TimeMotion::Stop(0.) },
@@ -1209,7 +1213,7 @@ mod test {
             }
         }
         assert_eq!(
-            super::intersection_bounding_box(tree.intersects(&moving_shape)),
+            intersection_bounding_box(tree.intersects(&moving_shape)),
             Some(super::BoundingBox {
                 min: super::Point { p2d: geom::Point { x: geom::AxisX { x: 358.75 }, y: geom::AxisY { y: 192.8125 } }, time: TimeMotion::Moment(0.) },
                 max: super::Point { p2d: geom::Point { x: geom::AxisX { x: 460. }, y: geom::AxisY { y: 300. } }, time: TimeMotion::Stop(0.) },

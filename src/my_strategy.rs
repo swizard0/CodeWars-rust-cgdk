@@ -15,14 +15,10 @@ pub mod consts;
 pub mod derivatives;
 #[path = "formation.rs"]
 pub mod formation;
-#[path = "instinct.rs"]
-pub mod instinct;
+#[path = "overmind.rs"]
+pub mod overmind;
 #[path = "progamer.rs"]
 pub mod progamer;
-#[path = "tactic.rs"]
-pub mod tactic;
-#[path = "atsral.rs"]
-pub mod atsral;
 #[path = "common.rs"]
 pub mod common;
 #[path = "router.rs"]
@@ -42,15 +38,13 @@ use self::rand::{SeedableRng, XorShiftRng};
 
 use self::side::Side;
 use self::formation::{FormationId, Formations};
+use self::overmind::Overmind;
 use self::progamer::Progamer;
-use self::tactic::Tactic;
-use self::atsral::{Atsral, AtsralForecast};
 
 pub struct MyStrategy {
     allies: Formations,
     enemies: Formations,
-    tactic: Tactic,
-    atsral: Atsral,
+    overmind: Overmind,
     progamer: Progamer,
     rng: Option<XorShiftRng>,
     split_buf: Vec<FormationId>,
@@ -61,8 +55,7 @@ impl Default for MyStrategy {
         MyStrategy {
             allies: Formations::new(Side::Allies),
             enemies: Formations::new(Side::Enemies),
-            tactic: Tactic::new(),
-            atsral: Atsral::new(),
+            overmind: Overmind::new(),
             progamer: Progamer::new(),
             rng: None,
             split_buf: Vec::new(),
@@ -84,8 +77,8 @@ impl Strategy for MyStrategy {
             debug!("world is {} x {}", world.width, world.height);
         }
         self.update_formations(me, world);
-        self.run_instinct(world, game, me);
-        self.progamer.maintain_apm(me, &mut self.allies, &mut self.tactic, game, action);
+        self.consult_overmind(game);
+        self.progamer.maintain_apm(me, &mut self.allies, game, action);
 
         vis.tick(me, world, game, action, &mut self.allies, &mut self.enemies);
     }
@@ -133,7 +126,7 @@ impl MyStrategy {
         }
     }
 
-    fn run_instinct(&mut self, world: &World, game: &Game, me: &Player) {
+    fn consult_overmind(&mut self, game: &Game) {
         let rng = self.rng.get_or_insert_with(|| {
             let a = (game.random_seed & 0xFFFFFFFF) as u32;
             let b = ((game.random_seed >> 32) & 0xFFFFFFFF) as u32;
@@ -143,30 +136,7 @@ impl MyStrategy {
             SeedableRng::from_seed(seed)
         });
 
-        self.tactic.clear();
-        loop {
-            let forms_count = self.allies.total();
-            {
-                let mut atsral_fc = if self.atsral.is_silent() {
-                    AtsralForecast::Silence(&mut self.atsral)
-                } else {
-                    AtsralForecast::Voices(&mut self.atsral)
-                };
-                let mut forms_iter = self.allies.iter();
-                while let Some(form) = forms_iter.next() {
-                    instinct::run(form, &mut atsral_fc, &mut self.tactic, rng, instinct::Config {
-                        world,
-                        game,
-                        me,
-                        forms_count,
-                    });
-                }
-            }
-            self.atsral.analyze(&mut self.enemies, game);
-            if self.atsral.is_silent() {
-                break;
-            }
-        }
+        self.overmind.decree(&mut self.allies, &mut self.enemies, game, rng);
     }
 }
 

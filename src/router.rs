@@ -4,8 +4,8 @@ use super::router_geom::{self, Axis, MotionShape, BoundingBox, ShapeIntersection
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Route<'a> {
-    hops: &'a [geom::Point],
-    time: f64,
+    pub hops: &'a [geom::Point],
+    pub time: f64,
 }
 
 pub struct Router {
@@ -44,16 +44,16 @@ enum Visit {
     NotYetVisited { hops: usize, goal_sq_dist: f64, passed_sq_dist: f64, },
 }
 
-pub struct RouterCache<'a> {
+pub struct RouterCache {
     queue: BinaryHeap<Step>,
     visited: HashMap<BypassKind, Visit>,
     path_buf: Vec<(geom::Point, usize)>,
     path: Vec<geom::Point>,
-    collision_cache: Vec<ShapeIntersection<'a>>,
+    collision_cache: Vec<ShapeIntersection>,
 }
 
-impl<'a> RouterCache<'a> {
-    pub fn new() -> RouterCache<'a> {
+impl RouterCache {
+    pub fn new() -> RouterCache {
         RouterCache {
             queue: BinaryHeap::new(),
             visited: HashMap::new(),
@@ -83,12 +83,12 @@ impl Router {
         Router { space, area, limits, }
     }
 
-    pub fn route<'a, 'q>(
-        &'a self,
+    pub fn route<'q>(
+        &self,
         unit_rect: &geom::Rect,
         unit_speed: f64,
         geom::Segment { src, dst, }: geom::Segment,
-        cache: &'q mut RouterCache<'a>
+        cache: &'q mut RouterCache
     )
         -> Option<Route<'q>>
     {
@@ -164,9 +164,9 @@ impl Router {
                 });
             } else {
                 for collision in collisions {
-                    let obstacle_rect = collision.shape.source_rect().translate(&geom::Point {
-                        x: geom::axis_x(collision.shape.route_stats().map(|s| s.speed_x * collision.time).unwrap_or(0.)),
-                        y: geom::axis_y(collision.shape.route_stats().map(|s| s.speed_y * collision.time).unwrap_or(0.)),
+                    let obstacle_rect = collision.source_rect.translate(&geom::Point {
+                        x: geom::axis_x(collision.route_stats.as_ref().map(|s| s.speed_x * collision.time).unwrap_or(0.)),
+                        y: geom::axis_y(collision.route_stats.as_ref().map(|s| s.speed_y * collision.time).unwrap_or(0.)),
                     });
                     // println!("  ;; bypassing obstacle {:?}", obstacle_rect);
 
@@ -186,7 +186,7 @@ impl Router {
                         let passed_sq_dist = passed_sq_dist + route_chunk.src.sq_dist(&bypass_pos);
                         let kind = BypassKind {
                             start: route_chunk.src,
-                            obstacle: collision.shape as *const _,
+                            obstacle: collision.shape_ptr,
                             obstacle_corner,
                             unit_corner,
                         };
