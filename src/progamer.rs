@@ -31,17 +31,24 @@ impl Progamer {
         }
 
         let (form_id, route, mut form) = if let Some(form_id) = self.pending.take() {
-            let mut form = formations.get_by_id(form_id).unwrap();
-            (form_id, mem::replace(form.current_route(), CurrentRoute::Idle), form)
+            if let Some(mut form) = formations.get_by_id(form_id) {
+                (form_id, mem::replace(form.current_route(), CurrentRoute::Idle), form)
+            } else {
+                return;
+            }
         } else if let Some((form_id, route)) = maybe_move {
-            (form_id, route, formations.get_by_id(form_id).unwrap())
+            (form_id, route, if let Some(form) = formations.get_by_id(form_id) {
+                form
+            } else {
+                return;
+            })
         } else {
             return;
         };
 
         if self.selection == Some(form.id) {
-            let hops = if let CurrentRoute::Ready(hops) = route {
-                hops
+            let (hops, reset) = if let CurrentRoute::Ready { hops, reset, } = route {
+                (hops, reset)
             } else {
                 unreachable!()
             };
@@ -54,7 +61,7 @@ impl Progamer {
                 action.y = (goal.y - fm.y).y;
             }
             self.pending = None;
-            mem::replace(form.current_route(), CurrentRoute::InProgress { hops, start_tick: world.tick_index, });
+            mem::replace(form.current_route(), CurrentRoute::InProgress { hops, start_tick: world.tick_index, reset, });
         } else {
             // formation is not selected
             let form_id = form.id;

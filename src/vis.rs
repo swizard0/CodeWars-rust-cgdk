@@ -79,6 +79,10 @@ impl Visualizer {
                     self.pause_tick += 100;
                     break;
                 },
+                Trigger::PauseAfter1000 => {
+                    self.pause_tick += 1000;
+                    break;
+                },
             }
         }
     }
@@ -92,7 +96,7 @@ impl Visualizer {
                 &mut CurrentRoute::Idle =>
                     (),
                 // println!("no route for {} of {:?}", form_id, kind);
-                &mut CurrentRoute::Ready(ref hops) | &mut CurrentRoute::InProgress { ref hops, .. } => {
+                &mut CurrentRoute::Ready { ref hops, .. } | &mut CurrentRoute::InProgress { ref hops, .. } => {
                     // println!("got route for {} of {:?} = {:?}", form_id, kind, hops);
                     let mut iter = hops.iter();
                     if let Some(mut ps) = iter.next() {
@@ -192,6 +196,8 @@ fn painter_loop(tx: &mpsc::Sender<Trigger>, rx: &mpsc::Receiver<DrawPacket>) {
                 tx.send(Trigger::PauseAfter10).unwrap(),
             Some(Button::Keyboard(Key::K)) =>
                 tx.send(Trigger::PauseAfter100).unwrap(),
+            Some(Button::Keyboard(Key::L)) =>
+                tx.send(Trigger::PauseAfter1000).unwrap(),
             _ =>
                 (),
         }
@@ -252,6 +258,7 @@ enum Trigger {
     PauseAfter1,
     PauseAfter10,
     PauseAfter100,
+    PauseAfter1000,
 }
 
 struct DrawPacket {

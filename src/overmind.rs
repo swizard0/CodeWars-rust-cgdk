@@ -7,12 +7,16 @@ use super::formation::{FormationId, FormationRef, Formations, CurrentRoute};
 
 pub struct Overmind {
     decision_queue: BinaryHeap<QueueEntry>,
+    router_cache: router::RouterCache,
+    space: Vec<(geom::Rect, Option<(geom::Segment, f64)>)>,
 }
 
 impl Overmind {
     pub fn new() -> Overmind {
         Overmind {
             decision_queue: BinaryHeap::new(),
+            router_cache: router::RouterCache::new(),
+            space: Vec::new(),
         }
     }
 
@@ -27,31 +31,47 @@ impl Overmind {
         -> Option<(FormationId, CurrentRoute)>
         where R: Rng
     {
-        self.decision_queue.clear();
-        self.analyze(allies, enemies, world, game, rng);
+        if self.decision_queue.is_empty() {
+            self.analyze(allies, enemies, world, game, rng);
+        }
 
-        let mut space = Vec::new();
-        let mut router_cache = router::RouterCache::new();
+        let mut decisions_counter = 0;
         while let Some(entry) = self.decision_queue.pop() {
-            space.clear();
+            if decisions_counter >= consts::OVERMIND_DECREES_BY_TICK {
+                break;
+            }
+            decisions_counter += 1;
+
+            self.space.clear();
             match entry.idea {
                 Idea::Attack { enemy_form_id, .. } => {
                     let (ally_kind, speed, rect, src) = {
-                        let mut form = allies.get_by_id(entry.ally_form_id).unwrap();
-                        let (rect, fx) = {
-                            let bbox = form.bounding_box();
-                            (bbox.rect.clone(), bbox.mass)
-                        };
-                        (form.kind().clone(), common::max_speed(game, form.kind()), rect, fx)
+                        if let Some(mut form) = allies.get_by_id(entry.ally_form_id) {
+                            let (rect, fx) = {
+                                let bbox = form.bounding_box();
+                                (bbox.rect.clone(), bbox.mass)
+                            };
+                            (form.kind().clone(), common::max_speed(game, form.kind()), rect, fx)
+                        } else {
+                            continue;
+                        }
                     };
                     let router =
-                        init_router(&mut space, entry.ally_form_id, ally_kind, &rect, Some(enemy_form_id), allies, enemies, game);
-                    let dst = enemies.get_by_id(enemy_form_id).unwrap().bounding_box().mass;
+                        init_router(&mut self.space, entry.ally_form_id, ally_kind, &rect, Some(enemy_form_id), allies, enemies, game);
+                    let dst = if let Some(mut eform) = enemies.get_by_id(enemy_form_id) {
+                        eform.bounding_box().mass
+                    } else {
+                        continue;
+                    };
                     // debug!(" ;; building attack route for {:?} speed {} as {:?}", rect, speed, geom::Segment { src, dst, });
-                    if let Some(route) = router.route(&rect, speed, geom::Segment { src, dst, }, &mut router_cache) {
+                    if let Some(route) = router.route(&rect, speed, geom::Segment { src, dst, }, &mut self.router_cache) {
                         debug!("ally form {} of {:?} ACCEPTED attack enemy form {} (total {} hops)",
                                entry.ally_form_id, ally_kind, enemy_form_id, route.hops.len());
-                        return Some((entry.ally_form_id, CurrentRoute::Ready(route.hops.to_owned())));
+                        self.decision_queue.clear();
+                        return Some((entry.ally_form_id, CurrentRoute::Ready {
+                            hops: route.hops.to_owned(),
+                            reset: rng.gen_range(consts::ROUTE_RESET_TICKS_MIN, consts::ROUTE_RESET_TICKS_MAX),
+                        }));
                     } else {
                         debug!("ally form {} of {:?} is unable to attack enemy form {} (no route)",
                                entry.ally_form_id, ally_kind, enemy_form_id);
@@ -59,20 +79,27 @@ impl Overmind {
                 },
                 Idea::Scout { target: dst, .. } => {
                     let (ally_kind, speed, rect, src) = {
-                        let mut form = allies.get_by_id(entry.ally_form_id).unwrap();
-                        let (rect, fx) = {
-                            let bbox = form.bounding_box();
-                            (bbox.rect.clone(), bbox.mass)
-                        };
-                        (form.kind().clone(), common::max_speed(game, form.kind()), rect, fx)
+                        if let Some(mut form) = allies.get_by_id(entry.ally_form_id) {
+                            let (rect, fx) = {
+                                let bbox = form.bounding_box();
+                                (bbox.rect.clone(), bbox.mass)
+                            };
+                            (form.kind().clone(), common::max_speed(game, form.kind()), rect, fx)
+                        } else {
+                            continue;
+                        }
                     };
                     let router =
-                        init_router(&mut space, entry.ally_form_id, ally_kind, &rect, None, allies, enemies, game);
+                        init_router(&mut self.space, entry.ally_form_id, ally_kind, &rect, None, allies, enemies, game);
                     // debug!(" ;; building scout route for {:?} speed {} as {:?}", rect, speed, geom::Segment { src, dst, });
-                    if let Some(route) = router.route(&rect, speed, geom::Segment { src, dst, }, &mut router_cache) {
+                    if let Some(route) = router.route(&rect, speed, geom::Segment { src, dst, }, &mut self.router_cache) {
                         debug!("ally form {} of {:?} ACCEPTED scout {:?} (total {} hops)",
                                entry.ally_form_id, ally_kind, dst, route.hops.len());
-                        return Some((entry.ally_form_id, CurrentRoute::Ready(route.hops.to_owned())));
+                        self.decision_queue.clear();
+                        return Some((entry.ally_form_id, CurrentRoute::Ready {
+                            hops: route.hops.to_owned(),
+                            reset: rng.gen_range(consts::ROUTE_RESET_TICKS_MIN, consts::ROUTE_RESET_TICKS_MAX),
+                        }));
                     } else {
                         debug!("ally form {} of {:?} is unable to scout {:?} (no route)",
                                entry.ally_form_id, ally_kind, dst);
@@ -155,12 +182,12 @@ impl Eq for Idea { }
 
 fn check_stopped<'a>(form: &mut FormationRef<'a>, world: &World) {
     // check if vehicle is stopped while moving
-    if let &mut CurrentRoute::InProgress { start_tick, .. } = form.current_route() {
+    if let &mut CurrentRoute::InProgress { start_tick, reset, .. } = form.current_route() {
         let is_idle = {
             let (dvts, ..) = form.dvt_sums(world.tick_index);
             dvts.d_x == 0. && dvts.d_y == 0.
         };
-        if is_idle || world.tick_index - start_tick >= consts::ROUTE_RESET_TICKS {
+        if is_idle || world.tick_index >= start_tick + reset {
             debug!("@ {} formation {} of {:?} ARRIVED at next hop", world.tick_index, form.id, form.kind());
             ::std::mem::replace(form.current_route(), CurrentRoute::Idle);
         }

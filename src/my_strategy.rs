@@ -68,10 +68,10 @@ impl Strategy for MyStrategy {
         if world.tick_index == 0 {
             // env_logger::init().unwrap();
             #[cfg(debug_assertions)]
-            self::env_logger::LogBuilder::new()
-                .filter(Some("code_wars"), self::log::LogLevelFilter::Debug)
-                .init()
-                .unwrap();
+            // self::env_logger::LogBuilder::new()
+            //     .filter(Some("code_wars"), self::log::LogLevelFilter::Debug)
+            //     .init()
+            //     .unwrap();
 
             debug!("{:?}", game);
             debug!("world is {} x {}", world.width, world.height);
@@ -130,7 +130,7 @@ impl MyStrategy {
                         }
                     };
                     *form.current_route() = if let Some(dst) = maybe_dst {
-                        CurrentRoute::InProgress { hops: vec![src, dst], start_tick: 0, }
+                        CurrentRoute::InProgress { hops: vec![src, dst], start_tick: 0, reset: 0, }
                     } else {
                         CurrentRoute::Idle
                     };
