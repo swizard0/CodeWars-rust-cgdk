@@ -8,10 +8,15 @@ pub struct Route<'a> {
     pub time: f64,
 }
 
+pub struct Config {
+    pub limits: Limits,
+    pub bypass_pad: f64,
+}
+
 pub struct Router {
     space: kdtree::KdvTree<router_geom::Point, BoundingBox, MotionShape>,
     area: geom::Rect,
-    limits: Limits,
+    config: Config,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -72,15 +77,15 @@ impl RouterCache {
 }
 
 impl Router {
-    pub fn init_space<I>(obstacles_iter: I, limits: Limits, area: geom::Rect) -> Router
+    pub fn init_space<I>(obstacles_iter: I, config: Config, area: geom::Rect) -> Router
         where I: IntoIterator<Item = (geom::Rect, Option<(geom::Segment, f64)>)>
     {
         let space = kdtree::KdvTree::build(
             Some(Axis::X).into_iter().chain(Some(Axis::Y).into_iter()).chain(Some(Axis::Time)),
             obstacles_iter
                 .into_iter()
-                .map(|(src_bbox, en_route)| MotionShape::new(src_bbox, en_route, limits.clone())));
-        Router { space, area, limits, }
+                .map(|(src_bbox, en_route)| MotionShape::new(src_bbox, en_route, config.limits.clone())));
+        Router { space, area, config, }
     }
 
     pub fn route<'q>(
@@ -146,7 +151,8 @@ impl Router {
             };
             let translated_unit_rect = unit_rect.translate(&geom::Segment { src, dst: route_chunk.src, }.to_vec());
             // println!("  ;; @ {} going {:?} with speed {}: translated = {:?}", time, route_chunk, unit_speed, translated_unit_rect);
-            let motion_shape = MotionShape::with_start(translated_unit_rect, Some((route_chunk.clone(), unit_speed)), self.limits.clone(), time);
+            let motion_shape =
+                MotionShape::with_start(translated_unit_rect, Some((route_chunk.clone(), unit_speed)), self.config.limits.clone(), time);
             let collisions =
                 router_geom::intersection_shapes(self.space.intersects(&motion_shape), &mut cache.collision_cache);
             if collisions.is_empty() {
@@ -215,33 +221,34 @@ impl Router {
 
                     let ur = &unit_rect.translate(&geom::Segment { src, dst: route_chunk.src, }.to_vec());
                     let or = &obstacle_rect;
+                    let pad = self.config.bypass_pad;
                     // unit north west corner to obstacle north east corner
-                    make_trans(gen_bypass(ur, |r| r.lt, route_chunk.src, or, |r| r.rb.x.x + unit_speed, |r| r.lt.y.y - unit_speed), 0, 1);
+                    make_trans(gen_bypass(ur, |r| r.lt, route_chunk.src, or, |r| r.rb.x.x + pad, |r| r.lt.y.y - pad), 0, 1);
                     // unit north west corner to obstacle south east corner
-                    make_trans(gen_bypass(ur, |r| r.lt, route_chunk.src, or, |r| r.rb.x.x + unit_speed, |r| r.rb.y.y + unit_speed), 0, 2);
+                    make_trans(gen_bypass(ur, |r| r.lt, route_chunk.src, or, |r| r.rb.x.x + pad, |r| r.rb.y.y + pad), 0, 2);
                     // unit north west corner to obstacle south west corner
-                    make_trans(gen_bypass(ur, |r| r.lt, route_chunk.src, or, |r| r.lt.x.x - unit_speed, |r| r.rb.y.y + unit_speed), 0, 3);
+                    make_trans(gen_bypass(ur, |r| r.lt, route_chunk.src, or, |r| r.lt.x.x - pad, |r| r.rb.y.y + pad), 0, 3);
 
                     // unit north east corner to obstacle north west corner
-                    make_trans(gen_bypass(ur, |r| r.rt(), route_chunk.src, or, |r| r.lt.x.x - unit_speed, |r| r.lt.y.y - unit_speed), 1, 0);
+                    make_trans(gen_bypass(ur, |r| r.rt(), route_chunk.src, or, |r| r.lt.x.x - pad, |r| r.lt.y.y - pad), 1, 0);
                     // unit north east corner to obstacle south east corner
-                    make_trans(gen_bypass(ur, |r| r.rt(), route_chunk.src, or, |r| r.rb.x.x + unit_speed, |r| r.rb.y.y + unit_speed), 1, 2);
+                    make_trans(gen_bypass(ur, |r| r.rt(), route_chunk.src, or, |r| r.rb.x.x + pad, |r| r.rb.y.y + pad), 1, 2);
                     // unit north east corner to obstacle south west corner
-                    make_trans(gen_bypass(ur, |r| r.rt(), route_chunk.src, or, |r| r.lt.x.x - unit_speed, |r| r.rb.y.y + unit_speed), 1, 3);
+                    make_trans(gen_bypass(ur, |r| r.rt(), route_chunk.src, or, |r| r.lt.x.x - pad, |r| r.rb.y.y + pad), 1, 3);
 
                     // unit south east corner to obstacle north west corner
-                    make_trans(gen_bypass(ur, |r| r.rb, route_chunk.src, or, |r| r.lt.x.x - unit_speed, |r| r.lt.y.y - unit_speed), 2, 0);
+                    make_trans(gen_bypass(ur, |r| r.rb, route_chunk.src, or, |r| r.lt.x.x - pad, |r| r.lt.y.y - pad), 2, 0);
                     // unit south east corner to obstacle north east corner
-                    make_trans(gen_bypass(ur, |r| r.rb, route_chunk.src, or, |r| r.rb.x.x + unit_speed, |r| r.lt.y.y - unit_speed), 2, 1);
+                    make_trans(gen_bypass(ur, |r| r.rb, route_chunk.src, or, |r| r.rb.x.x + pad, |r| r.lt.y.y - pad), 2, 1);
                     // unit south east corner to obstacle south west corner
-                    make_trans(gen_bypass(ur, |r| r.rb, route_chunk.src, or, |r| r.lt.x.x - unit_speed, |r| r.rb.y.y + unit_speed), 2, 3);
+                    make_trans(gen_bypass(ur, |r| r.rb, route_chunk.src, or, |r| r.lt.x.x - pad, |r| r.rb.y.y + pad), 2, 3);
 
                     // unit south west corner to obstacle north west corner
-                    make_trans(gen_bypass(ur, |r| r.lb(), route_chunk.src, or, |r| r.lt.x.x - unit_speed, |r| r.lt.y.y - unit_speed), 3, 0);
+                    make_trans(gen_bypass(ur, |r| r.lb(), route_chunk.src, or, |r| r.lt.x.x - pad, |r| r.lt.y.y - pad), 3, 0);
                     // unit south west corner to obstacle north east corner
-                    make_trans(gen_bypass(ur, |r| r.lb(), route_chunk.src, or, |r| r.rb.x.x + unit_speed, |r| r.lt.y.y - unit_speed), 3, 1);
+                    make_trans(gen_bypass(ur, |r| r.lb(), route_chunk.src, or, |r| r.rb.x.x + pad, |r| r.lt.y.y - pad), 3, 1);
                     // unit south west corner to obstacle south east corner
-                    make_trans(gen_bypass(ur, |r| r.lb(), route_chunk.src, or, |r| r.rb.x.x + unit_speed, |r| r.rb.y.y + unit_speed), 3, 2);
+                    make_trans(gen_bypass(ur, |r| r.lb(), route_chunk.src, or, |r| r.rb.x.x + pad, |r| r.rb.y.y + pad), 3, 2);
                 }
             }
         }
@@ -322,7 +329,7 @@ impl Eq for Step {}
 mod test {
     use super::super::geom::{axis_x, axis_y, AxisX, AxisY, Point, Segment, Rect};
     use super::super::router_geom::Limits;
-    use super::{Router, RouterCache};
+    use super::{Config, Router, RouterCache};
 
     fn sg(src_x: f64, src_y: f64, dst_x: f64, dst_y: f64) -> Segment {
         Segment { src: Point { x: axis_x(src_x), y: axis_y(src_y), }, dst: Point { x: axis_x(dst_x), y: axis_y(dst_y), }, }
@@ -332,13 +339,27 @@ mod test {
         Rect { lt: Point { x: axis_x(left), y: axis_y(top), }, rb: Point { x: axis_x(right), y: axis_y(bottom), }, }
     }
 
+    fn default_config() -> Config {
+        Config {
+            limits: Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+            bypass_pad: 2.,
+        }
+    }
+
+    fn huge_config() -> Config {
+        Config {
+            limits: Limits { x_min_diff: 50., y_min_diff: 50., time_min_diff: 50., },
+            bypass_pad: 2.,
+        }
+    }
+
     #[test]
     fn route_direct() {
         let router = Router::init_space(
             vec![
                 (rt(20., 20., 30., 40.), Some((sg(25., 30., 25., 50.), 2.)))
             ],
-            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+            default_config(),
             rt(0., 0., 100., 100.,),
         );
         let mut cache = RouterCache::new();
@@ -354,7 +375,7 @@ mod test {
             vec![
                 (rt(100., 100., 160., 300.), None),
             ],
-            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+            default_config(),
             rt(0., 0., 1000., 1000.,),
         );
         let mut cache = RouterCache::new();
@@ -377,7 +398,7 @@ mod test {
                 (rt(160., 240., 400., 300.), None),
                 (rt(400., 100., 460., 300.), None),
             ],
-            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+            default_config(),
             rt(0., 0., 1000., 1000.,),
         );
         let mut cache = RouterCache::new();
@@ -398,7 +419,7 @@ mod test {
             vec![
                 (rt(10., 20., 20., 40.), Some((sg(15., 30., 35., 30.), 1.)))
             ],
-            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+            default_config(),
             rt(0., 0., 100., 100.,),
         );
         let mut cache = RouterCache::new();
@@ -420,7 +441,7 @@ mod test {
             vec![
                 (rt(60., 10., 80., 30.), Some((sg(70., 20., 10., 20.), 2.)))
             ],
-            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+            default_config(),
             rt(0., 0., 200., 200.,),
         );
         let mut cache = RouterCache::new();
@@ -428,8 +449,8 @@ mod test {
             router.route(&rt(10., 10., 14., 14.,), 1., sg(12., 12., 42., 42.,), &mut cache).map(|r| r.hops),
             Some([
                 Point { x: AxisX { x: 12. }, y: AxisY { y: 12. } },
-                Point { x: AxisX { x: 19.641304347826086 }, y: AxisY { y: 7. } },
-                Point { x: AxisX { x: 35.31578947368421 }, y: AxisY { y: 7. } },
+                Point { x: AxisX { x: 18.641304347826086 }, y: AxisY { y: 6. } },
+                Point { x: AxisX { x: 35.9375 }, y: AxisY { y: 6. } },
                 Point { x: AxisX { x: 42. }, y: AxisY { y: 42. } },
             ].as_ref())
         );
@@ -441,7 +462,7 @@ mod test {
             vec![
                 (rt(20., 10., 40., 30.), Some((sg(30., 20., 80., 20.), 2.)))
             ],
-            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+            default_config(),
             rt(0., 0., 200., 200.,),
         );
         let mut cache = RouterCache::new();
@@ -449,7 +470,7 @@ mod test {
             router.route(&rt(10., 10., 14., 14.), 3., sg(12., 12., 42., 42.), &mut cache).map(|r| r.hops),
             Some([
                 Point { x: AxisX { x: 12. }, y: AxisY { y: 12. } },
-                Point { x: AxisX { x: 23.020833333333336 }, y: AxisY { y: 31. } },
+                Point { x: AxisX { x: 24.020833333333336 }, y: AxisY { y: 34. } },
                 Point { x: AxisX { x: 42. }, y: AxisY { y: 42. } },
             ].as_ref())
         );
@@ -463,7 +484,7 @@ mod test {
                 (rt(90., 130., 110., 150.), Some((sg(100., 140., 40., 140.), 1.))),
                 (rt(80., 150., 100., 170.), Some((sg(90., 160., 30., 160.), 1.))),
             ],
-            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+            default_config(),
             rt(0., 0., 200., 200.,),
         );
         let mut cache = RouterCache::new();
@@ -486,7 +507,7 @@ mod test {
                 (rt(160., 240., 400., 300.), None),
                 (rt(400., 100., 460., 300.), None),
             ],
-            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+            default_config(),
             rt(95., 95., 1000., 1000.,),
         );
         let mut cache = RouterCache::new();
@@ -507,7 +528,7 @@ mod test {
                 (Rect { lt: Point { x: AxisX { x: 930. }, y: AxisY { y: 782. } }, rb: Point { x: AxisX { x: 1028. }, y: AxisY { y: 880. } } }, None),
                 (Rect { lt: Point { x: AxisX { x: 802. }, y: AxisY { y: 876. } }, rb: Point { x: AxisX { x: 860. }, y: AxisY { y: 934. } } }, None),
             ],
-            Limits { x_min_diff: 50., y_min_diff: 50., time_min_diff: 50., },
+            huge_config(),
             rt(0., 0., 1000., 1000.),
         );
         let mut cache = RouterCache::new();
@@ -535,7 +556,7 @@ mod test {
                 }, None),
                 (Rect { lt: Point { x: AxisX { x: 930. }, y: AxisY { y: 782. } }, rb: Point { x: AxisX { x: 1028. }, y: AxisY { y: 880. } } }, None),
             ],
-            Limits { x_min_diff: 50., y_min_diff: 50., time_min_diff: 50., },
+            huge_config(),
             rt(0., 0., 1000., 1000.),
         );
         let mut cache = RouterCache::new();

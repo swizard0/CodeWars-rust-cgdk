@@ -1,7 +1,7 @@
 use std::collections::BinaryHeap;
 
 use model::{Game, VehicleType};
-use super::{geom, common, router, router_geom};
+use super::{consts, geom, common, router, router_geom};
 use super::rand::Rng;
 use super::formation::{FormationId, FormationRef, Formations};
 
@@ -279,7 +279,14 @@ fn init_router(
     });
     router::Router::init_space(
         space.drain(..),
-        router_geom::Limits { x_min_diff: 50., y_min_diff: 50., time_min_diff: 50., },
+        router::Config {
+            limits: router_geom::Limits {
+                x_min_diff: consts::ROUTER_X_MIN_DIFF,
+                y_min_diff: consts::ROUTER_Y_MIN_DIFF,
+                time_min_diff: consts::ROUTER_TIME_MIN_DIFF,
+            },
+            bypass_pad: consts::ROUTER_BYPASS_PAD,
+        },
         geom::Rect {
             lt: geom::Point { x: geom::axis_x(0.), y: geom::axis_y(0.), },
             rb: geom::Point { x: geom::axis_x(game.world_width), y: geom::axis_y(game.world_height), },
