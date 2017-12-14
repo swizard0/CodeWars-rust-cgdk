@@ -37,7 +37,7 @@ use super::vis::Visualizer;
 use self::rand::{SeedableRng, XorShiftRng};
 
 use self::side::Side;
-use self::formation::{FormationId, Formations};
+use self::formation::{FormationId, Formations, CurrentRoute};
 use self::overmind::Overmind;
 use self::progamer::Progamer;
 
@@ -126,7 +126,7 @@ impl MyStrategy {
         }
     }
 
-    fn consult_overmind(&mut self, game: &Game) -> Option<(FormationId, geom::Point)> {
+    fn consult_overmind(&mut self, game: &Game) -> Option<(FormationId, CurrentRoute)> {
         let rng = self.rng.get_or_insert_with(|| {
             let a = (game.random_seed & 0xFFFFFFFF) as u32;
             let b = ((game.random_seed >> 32) & 0xFFFFFFFF) as u32;

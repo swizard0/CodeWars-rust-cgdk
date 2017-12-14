@@ -1,8 +1,8 @@
-pub const ROUTER_X_MIN_DIFF: f64 = 50.;
-pub const ROUTER_Y_MIN_DIFF: f64 = 50.;
-pub const ROUTER_TIME_MIN_DIFF: f64 = 50.;
+pub const ROUTER_X_MIN_DIFF: f64 = 64.;
+pub const ROUTER_Y_MIN_DIFF: f64 = 64.;
+pub const ROUTER_TIME_MIN_DIFF: f64 = 64.;
 pub const ROUTER_BYPASS_PAD: f64 = 3.;
-pub const ALLY_SPLIT_DENSITY: f64 = 0.15;
+// pub const ALLY_SPLIT_DENSITY: f64 = 0.15;
 pub const ENEMY_SPLIT_DENSITY: f64 = 0.15;
 // pub const COMPACT_DENSITY: f64 = 0.03;
 // pub const ESCAPE_BOUNCE_FACTOR: f64 = 80.0;

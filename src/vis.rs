@@ -2,8 +2,8 @@ use std::{path, thread};
 use std::sync::mpsc;
 use model::{Game, Action, Player, World, Vehicle, VehicleType};
 use super::my_strategy::side::Side;
-use super::my_strategy::geom::Rect;
-use super::my_strategy::formation::Formations;
+use super::my_strategy::geom::{Rect, Point};
+use super::my_strategy::formation::{Formations, CurrentRoute};
 
 const CONSOLE_HEIGHT: u32 = 32;
 const BORDER_WIDTH: u32 = 16;
@@ -83,9 +83,24 @@ impl Visualizer {
         let side = formations.side;
         let mut forms_iter = formations.iter();
         while let Some(mut form) = forms_iter.next() {
+            let kind = form.kind().clone();
+            match form.current_route() {
+                &mut CurrentRoute::Idle =>
+                    (),
+                // println!("no route for {} of {:?}", form_id, kind);
+                &mut CurrentRoute::Ready(ref hops) | &mut CurrentRoute::InProgress(ref hops) => {
+                    // println!("got route for {} of {:?} = {:?}", form_id, kind, hops);
+                    let mut iter = hops.iter();
+                    if let Some(mut ps) = iter.next() {
+                        for pe in iter {
+                            draw.push(Draw::RouteChunk { side, kind, src: ps.clone(), dst: pe.clone(), });
+                            ps = pe;
+                        }
+                    }
+                },
+            }
             draw.push(Draw::Formation {
-                side,
-                kind: form.kind().clone(),
+                side, kind,
                 bbox: form.bounding_box().rect.clone(),
             });
             for vehicle in form.vehicles() {
@@ -119,7 +134,7 @@ fn painter_loop(tx: &mpsc::Sender<Trigger>, rx: &mpsc::Receiver<DrawPacket>) {
     let mut draw_confirmed = false;
     while let Some(event) = window.next() {
         window.draw_2d(&event, |context, g2d| {
-            use piston_window::{clear, text, rectangle, Transformed};
+            use piston_window::{clear, text, rectangle, line, Transformed};
             clear([0.0, 0.0, 0.0, 1.0], g2d);
             text::Text::new_color([0.0, 1.0, 0.0, 1.0], 16).draw(
                 &format!("{} |", draw_packet.tick_index),
@@ -151,6 +166,11 @@ fn painter_loop(tx: &mpsc::Sender<Trigger>, rx: &mpsc::Receiver<DrawPacket>) {
                                 tr.scale_y((bbox.bottom() - bbox.top()).y),
                             ];
                             rectangle(color, coords, context.transform, g2d);
+                        },
+                        &Draw::RouteChunk { side, kind, src, dst, } => {
+                            let color = vehicle_color(side, kind);
+                            let coords = [tr.x(src.x.x), tr.y(src.y.y), tr.x(dst.x.x), tr.y(dst.y.y)];
+                            line(color, 2., coords, context.transform, g2d);
                         },
                     }
                 }
@@ -237,6 +257,7 @@ struct DrawPacket {
 enum Draw {
     Vehicle { side: Side, vehicle: Vehicle, },
     Formation { side: Side, kind: Option<VehicleType>, bbox: Rect, },
+    RouteChunk { side: Side, kind: Option<VehicleType>, src: Point, dst: Point, },
 }
 
 fn vehicle_color(side: Side, kind: Option<VehicleType>) -> [f32; 4] {

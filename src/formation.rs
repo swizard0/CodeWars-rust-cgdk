@@ -3,7 +3,7 @@ use std::collections::hash_map::Entry;
 use super::rand::Rng;
 use model::{Vehicle, VehicleUpdate, VehicleType};
 use super::derivatives::Derivatives;
-use super::geom::{axis_x, axis_y, Point, Rect, Boundary};
+use super::geom::{axis_x, axis_y, Point, Rect, Boundary, Segment};
 use super::side::Side;
 
 pub type FormationId = i32;
@@ -146,7 +146,7 @@ impl<'a> FormationRef<'a> {
         &self.form.kind
     }
 
-    pub fn current_route(&mut self) -> &mut Option<Vec<Point>> {
+    pub fn current_route(&mut self) -> &mut CurrentRoute {
         &mut self.form.current_route
     }
 
@@ -200,12 +200,41 @@ impl<'a> Drop for FormationBuilder<'a> {
     }
 }
 
+#[derive(Clone, PartialEq, Debug)]
+pub enum CurrentRoute {
+    Idle,
+    Ready(Vec<Point>),
+    InProgress(Vec<Point>),
+}
+
+impl CurrentRoute {
+    pub fn next_hop(&self) -> Option<&Point> {
+        match self {
+            &CurrentRoute::Idle =>
+                None,
+            &CurrentRoute::Ready(ref hops) =>
+                hops.get(1),
+            &CurrentRoute::InProgress(ref hops) =>
+                hops.get(1),
+        }
+    }
+
+    pub fn route(&self) -> Option<Segment> {
+        match self {
+            &CurrentRoute::Idle =>
+                None,
+            &CurrentRoute::Ready(ref hops) | &CurrentRoute::InProgress(ref hops) =>
+                hops.split_first().and_then(|(&src, rest)| rest.split_first().map(|(&dst, _)| Segment { src, dst, })),
+        }
+    }
+}
+
 struct Formation {
     kind: Option<VehicleType>,
     vehicles: Vec<i64>,
     bbox: Option<Boundary>,
     update_tick: i32,
-    current_route: Option<Vec<Point>>,
+    current_route: CurrentRoute,
     dvt_s: Derivatives,
     dur_max: i32,
     dur_cur: i32,
@@ -224,7 +253,7 @@ impl Formation {
             vehicles: Vec::new(),
             bbox: None,
             update_tick: tick,
-            current_route: None,
+            current_route: CurrentRoute::Idle,
             dvt_s: Derivatives::new(),
             dur_max: 0,
             dur_cur: 0,
@@ -254,10 +283,12 @@ impl Formation {
         // invalidate cached bbox
         self.bbox = None;
         // check if vehicle is stopped while moving
-        if unit.dvt.d_x == 0. && unit.dvt.d_y == 0. && self.current_route.is_some() {
-            debug!("@ {} formation {} of {:?} ARRIVED at next hop {:?}",
-                   tick, unit.form_id, self.kind, self.current_route.as_ref().and_then(|r| r.get(1)));
-            self.current_route = None;
+        if let CurrentRoute::InProgress(..) = self.current_route {
+            if unit.dvt.d_x == 0. && unit.dvt.d_y == 0. {
+                debug!("@ {} formation {} of {:?} ARRIVED at next hop {:?}",
+                       tick, unit.form_id, self.kind, self.current_route.next_hop());
+                self.current_route = CurrentRoute::Idle;
+            }
         }
         // check if vehicle is destroyed
         if unit.vehicle.durability > 0 {
