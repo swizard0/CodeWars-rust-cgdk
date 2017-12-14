@@ -76,7 +76,7 @@ impl Visualizer {
                     break;
                 },
                 Trigger::PauseAfter100 => {
-                    self.pause_tick += 10;
+                    self.pause_tick += 100;
                     break;
                 },
             }

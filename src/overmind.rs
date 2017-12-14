@@ -290,6 +290,7 @@ fn init_router(
                 time_min_diff: consts::ROUTER_TIME_MIN_DIFF,
             },
             bypass_pad: consts::ROUTER_BYPASS_PAD,
+            pops_limit: consts::ROUTER_POPS_LIMIT,
         },
         geom::Rect {
             lt: geom::Point { x: geom::axis_x(0.), y: geom::axis_y(0.), },

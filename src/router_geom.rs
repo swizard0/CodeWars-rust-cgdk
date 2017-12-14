@@ -259,12 +259,14 @@ impl MotionShape {
                 return None,
             (&Axis::Y, _, _) if fragment.max.p2d.y.y - fragment.min.p2d.y.y < self.limits.y_min_diff =>
                 return None,
-            (&Axis::Time, TimeMotion::Moment(tmin), TimeMotion::Moment(tmax)) if tmax - tmin < self.limits.time_min_diff =>
-                return None,
-            (&Axis::Time, TimeMotion::Moment(tmin), TimeMotion::Future { stop: tmax, .. }) if tmax - tmin < self.limits.time_min_diff =>
-                return None,
-            (&Axis::Time, TimeMotion::Moment(tmin), TimeMotion::Limit { stop: tmax, .. }) if tmax - tmin < self.limits.time_min_diff =>
-                return None,
+            (&Axis::Time, TimeMotion::Moment(tmin), TimeMotion::Moment(tmax)) |
+            (&Axis::Time, TimeMotion::Moment(tmin), TimeMotion::Future { future: tmax, .. }) |
+            (&Axis::Time, TimeMotion::Moment(tmin), TimeMotion::Limit { limit: tmax, .. }) |
+            (&Axis::Time, TimeMotion::Future { future: tmin, .. }, TimeMotion::Future { future: tmax, .. }) |
+            (&Axis::Time, TimeMotion::Future { future: tmin, .. }, TimeMotion::Limit { limit: tmax, .. }) =>
+                if tmax - tmin < self.limits.time_min_diff {
+                    return None;
+                },
             _ =>
                 (),
         }

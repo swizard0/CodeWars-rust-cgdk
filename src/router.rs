@@ -11,6 +11,7 @@ pub struct Route<'a> {
 pub struct Config {
     pub limits: Limits,
     pub bypass_pad: f64,
+    pub pops_limit: Option<usize>,
 }
 
 pub struct Router {
@@ -109,7 +110,12 @@ impl Router {
             phead: 1,
         });
 
+        let mut pops = 0;
         while let Some(step) = cache.queue.pop() {
+            pops += 1;
+            if self.config.pops_limit.map(|limit| limit < pops).unwrap_or(false) {
+                break;
+            }
             // println!(" ;; A* step: {:?}", step);
             let Step { hops,  movement, goal_sq_dist, passed_sq_dist, position, time, phead, } = step;
             let current_dst =
@@ -341,6 +347,7 @@ mod test {
         Config {
             limits: Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
             bypass_pad: 2.,
+            pops_limit: None,
         }
     }
 
@@ -348,6 +355,7 @@ mod test {
         Config {
             limits: Limits { x_min_diff: 50., y_min_diff: 50., time_min_diff: 50., },
             bypass_pad: 2.,
+            pops_limit: None,
         }
     }
 
@@ -501,10 +509,8 @@ mod test {
             router.route(&rt(10., 138., 14., 142.), 2., sg(12., 140., 82., 140.), &mut cache).map(|r| r.hops),
             Some([
                 Point { x: AxisX { x: 12. }, y: AxisY { y: 140. } },
-                Point { x: AxisX { x: 45.114583333333336 }, y: AxisY { y: 134. } },
-                Point { x: AxisX { x: 43.37847222222223 }, y: AxisY { y: 106. } },
-                Point { x: AxisX { x: 62.56575520833333 }, y: AxisY { y: 106. } },
-                Point { x: AxisX { x: 66.1875 }, y: AxisY { y: 130. } },
+                Point { x: AxisX { x: 50.270833333333336 }, y: AxisY { y: 174. } },
+                Point { x: AxisX { x: 71.1107456140351 }, y: AxisY { y: 174. } },
                 Point { x: AxisX { x: 82. }, y: AxisY { y: 140. } },
             ].as_ref())
         );
