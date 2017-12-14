@@ -270,8 +270,10 @@ pub fn sq_dist(fx: AxisX, fy: AxisY, x: AxisX, y: AxisY) -> f64 {
     ((x - fx) * (x - fx)).x + ((y - fy) * (y - fy)).y
 }
 
+const MY_EPSILON: f64 = 0.00000000001;
+
 pub fn zero_epsilon(v: f64) -> bool {
-    v.abs() < ::std::f64::EPSILON
+    v.abs() < MY_EPSILON
 }
 
 use std::ops::{Add, Sub, Mul};

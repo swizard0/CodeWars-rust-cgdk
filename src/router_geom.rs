@@ -208,6 +208,22 @@ impl MotionShape {
             _ =>
                 (),
         }
+        match (cut_axis, cut_coord) {
+            (&Axis::X, &Coord::XY(cut)) if geom::zero_epsilon(cut - fragment.min.p2d.x.x) =>
+                return None,
+            (&Axis::X, &Coord::XY(cut)) if geom::zero_epsilon(cut - fragment.max.p2d.x.x) =>
+                return None,
+            (&Axis::Y, &Coord::XY(cut)) if geom::zero_epsilon(cut - fragment.min.p2d.y.y) =>
+                return None,
+            (&Axis::Y, &Coord::XY(cut)) if geom::zero_epsilon(cut - fragment.max.p2d.y.y) =>
+                return None,
+            (&Axis::Time, &Coord::Time(t)) if geom::zero_epsilon(t.timestamp() - fragment.min.time.timestamp()) =>
+                return None,
+            (&Axis::Time, &Coord::Time(t)) if geom::zero_epsilon(t.timestamp() - fragment.max.time.timestamp()) =>
+                return None,
+            _ =>
+                (),
+        }
         let movement = match (cut_axis, self.route_stats.as_ref()) {
             (&Axis::X, None) | (&Axis::Y, None) | (&Axis::Time, None) =>
                 None,
@@ -703,6 +719,20 @@ impl kdtree::Shape for MotionShape {
             // println!(" ;; => L: {:?}", left_bbox);
             // println!(" ;; => R: {:?}", right_bbox);
             // println!("");
+
+            // if !(right_bbox.min.p2d.y <= right_bbox.max.p2d.y) {
+            //     println!(" ;; DIFF: {}: {}",
+            //              right_bbox.min.p2d.y - right_bbox.max.p2d.y, geom::zero_epsilon(right_bbox.min.p2d.y.y - right_bbox.max.p2d.y.y));
+            //     println!(" ;; self.route_stats: {:?}", self.route_stats);
+            //     println!(" ;; self.src_bbox: {:?}", self.src_bbox);
+            //     println!(" ;; fragment: {:?}", fragment);
+            //     println!(" ;; cut_axis: {:?}", cut_axis);
+            //     println!(" ;; cut_coord: {:?}", cut_coord);
+            //     println!(" ;; => L: {:?}", left_bbox);
+            //     println!(" ;; => R: {:?}", right_bbox);
+            //     println!("");
+            //     panic!("boom");
+            // }
 
             assert!(left_bbox.min.p2d.x <= left_bbox.max.p2d.x);
             assert!(left_bbox.min.p2d.y <= left_bbox.max.p2d.y);

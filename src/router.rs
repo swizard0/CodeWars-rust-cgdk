@@ -332,166 +332,187 @@ mod test {
         Rect { lt: Point { x: axis_x(left), y: axis_y(top), }, rb: Point { x: axis_x(right), y: axis_y(bottom), }, }
     }
 
-    #[test]
-    fn route_direct() {
-        let router = Router::init_space(
-            vec![
-                (rt(20., 20., 30., 40.), Some((sg(25., 30., 25., 50.), 2.)))
-            ],
-            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
-            rt(0., 0., 100., 100.,),
-        );
-        let mut cache = RouterCache::new();
-        assert_eq!(
-            router.route(&rt(10., 10., 14., 14.), 1., sg(12., 12., 32., 32.,), &mut cache).map(|r| r.hops),
-            Some([Point { x: axis_x(12.), y: axis_y(12.), }, Point { x: axis_x(32.), y: axis_y(32.), }].as_ref())
-        );
-    }
+    // #[test]
+    // fn route_direct() {
+    //     let router = Router::init_space(
+    //         vec![
+    //             (rt(20., 20., 30., 40.), Some((sg(25., 30., 25., 50.), 2.)))
+    //         ],
+    //         Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+    //         rt(0., 0., 100., 100.,),
+    //     );
+    //     let mut cache = RouterCache::new();
+    //     assert_eq!(
+    //         router.route(&rt(10., 10., 14., 14.), 1., sg(12., 12., 32., 32.,), &mut cache).map(|r| r.hops),
+    //         Some([Point { x: axis_x(12.), y: axis_y(12.), }, Point { x: axis_x(32.), y: axis_y(32.), }].as_ref())
+    //     );
+    // }
+
+    // #[test]
+    // fn route_static_obstacle_1() {
+    //     let router = Router::init_space(
+    //         vec![
+    //             (rt(100., 100., 160., 300.), None),
+    //         ],
+    //         Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+    //         rt(0., 0., 1000., 1000.,),
+    //     );
+    //     let mut cache = RouterCache::new();
+    //     assert_eq!(
+    //         router.route(&rt(50., 150., 60., 160.), 2., sg(55., 155., 255., 155.), &mut cache).map(|r| r.hops),
+    //         Some([
+    //             Point { x: AxisX { x: 55. }, y: AxisY { y: 155. } },
+    //             Point { x: AxisX { x: 93. }, y: AxisY { y: 93. } },
+    //             Point { x: AxisX { x: 167. }, y: AxisY { y: 93. } },
+    //             Point { x: AxisX { x: 255. }, y: AxisY { y: 155. } },
+    //         ].as_ref())
+    //     );
+    // }
+
+    // #[test]
+    // fn route_static_obstacles_trap() {
+    //     let router = Router::init_space(
+    //         vec![
+    //             (rt(100., 100., 160., 300.), None),
+    //             (rt(160., 240., 400., 300.), None),
+    //             (rt(400., 100., 460., 300.), None),
+    //         ],
+    //         Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+    //         rt(0., 0., 1000., 1000.,),
+    //     );
+    //     let mut cache = RouterCache::new();
+    //     assert_eq!(
+    //         router.route(&rt(260., 140., 300., 180.), 2., sg(280., 160., 580., 340.), &mut cache).map(|r| r.hops),
+    //         Some([
+    //             Point { x: AxisX { x: 280. }, y: AxisY { y: 160. } },
+    //             Point { x: AxisX { x: 378. }, y: AxisY { y: 78. } },
+    //             Point { x: AxisX { x: 482. }, y: AxisY { y: 78. } },
+    //             Point { x: AxisX { x: 580. }, y: AxisY { y: 340. } },
+    //         ].as_ref())
+    //     );
+    // }
+
+    // #[test]
+    // fn route_moving_obstacle() {
+    //     let router = Router::init_space(
+    //         vec![
+    //             (rt(10., 20., 20., 40.), Some((sg(15., 30., 35., 30.), 1.)))
+    //         ],
+    //         Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+    //         rt(0., 0., 100., 100.,),
+    //     );
+    //     let mut cache = RouterCache::new();
+    //     assert_eq!(
+    //         router.route(&rt(10., 10., 14., 14.), 2., sg(12., 12., 32., 32.), &mut cache).map(|r| r.hops),
+    //         Some([
+    //             Point { x: AxisX { x: 12. }, y: AxisY { y: 12. } },
+    //             Point { x: AxisX { x: 24.375 }, y: AxisY { y: 16. } },
+    //             Point { x: AxisX { x: 36.798913043478265 }, y: AxisY { y: 16. } },
+    //             Point { x: AxisX { x: 23.335526315789473 }, y: AxisY { y: 16. } },
+    //             Point { x: AxisX { x: 32. }, y: AxisY { y: 32. } },
+    //         ].as_ref())
+    //     );
+    // }
+
+    // #[test]
+    // fn route_moving_obstacle_towards() {
+    //     let router = Router::init_space(
+    //         vec![
+    //             (rt(60., 10., 80., 30.), Some((sg(70., 20., 10., 20.), 2.)))
+    //         ],
+    //         Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+    //         rt(0., 0., 200., 200.,),
+    //     );
+    //     let mut cache = RouterCache::new();
+    //     assert_eq!(
+    //         router.route(&rt(10., 10., 14., 14.,), 1., sg(12., 12., 42., 42.,), &mut cache).map(|r| r.hops),
+    //         Some([
+    //             Point { x: AxisX { x: 12. }, y: AxisY { y: 12. } },
+    //             Point { x: AxisX { x: 19.641304347826086 }, y: AxisY { y: 7. } },
+    //             Point { x: AxisX { x: 35.31578947368421 }, y: AxisY { y: 7. } },
+    //             Point { x: AxisX { x: 42. }, y: AxisY { y: 42. } },
+    //         ].as_ref())
+    //     );
+    // }
+
+    // #[test]
+    // fn route_moving_obstacle_backwards() {
+    //     let router = Router::init_space(
+    //         vec![
+    //             (rt(20., 10., 40., 30.), Some((sg(30., 20., 80., 20.), 2.)))
+    //         ],
+    //         Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+    //         rt(0., 0., 200., 200.,),
+    //     );
+    //     let mut cache = RouterCache::new();
+    //     assert_eq!(
+    //         router.route(&rt(10., 10., 14., 14.), 3., sg(12., 12., 42., 42.), &mut cache).map(|r| r.hops),
+    //         Some([
+    //             Point { x: AxisX { x: 12. }, y: AxisY { y: 12. } },
+    //             Point { x: AxisX { x: 23.020833333333336 }, y: AxisY { y: 31. } },
+    //             Point { x: AxisX { x: 42. }, y: AxisY { y: 42. } },
+    //         ].as_ref())
+    //     );
+    // }
+
+    // #[test]
+    // fn route_three_moving_obstacles() {
+    //     let router = Router::init_space(
+    //         vec![
+    //             (rt(80., 110., 100., 130.), Some((sg(90., 120., 30., 120.), 1.))),
+    //             (rt(90., 130., 110., 150.), Some((sg(100., 140., 40., 140.), 1.))),
+    //             (rt(80., 150., 100., 170.), Some((sg(90., 160., 30., 160.), 1.))),
+    //         ],
+    //         Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+    //         rt(0., 0., 200., 200.,),
+    //     );
+    //     let mut cache = RouterCache::new();
+    //     assert_eq!(
+    //         router.route(&rt(10., 138., 14., 142.), 2., sg(12., 140., 82., 140.), &mut cache).map(|r| r.hops),
+    //         Some([
+    //             Point { x: AxisX { x: 12. }, y: AxisY { y: 140. } },
+    //             Point { x: AxisX { x: 42.33572048611111 }, y: AxisY { y: 174. } },
+    //             Point { x: AxisX { x: 71.16471354166669 }, y: AxisY { y: 174. } },
+    //             Point { x: AxisX { x: 82. }, y: AxisY { y: 140. } },
+    //         ].as_ref())
+    //     );
+    // }
+
+    // #[test]
+    // fn route_stuck() {
+    //     let router = Router::init_space(
+    //         vec![
+    //             (rt(100., 100., 160., 300.), None),
+    //             (rt(160., 240., 400., 300.), None),
+    //             (rt(400., 100., 460., 300.), None),
+    //         ],
+    //         Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
+    //         rt(95., 95., 1000., 1000.,),
+    //     );
+    //     let mut cache = RouterCache::new();
+    //     assert_eq!(
+    //         router.route(&rt(260., 140., 300., 180.), 2., sg(280., 160., 580., 340.), &mut cache).map(|r| r.hops),
+    //         None
+    //     );
+    // }
 
     #[test]
-    fn route_static_obstacle_1() {
+    fn problem_00() {
         let router = Router::init_space(
             vec![
-                (rt(100., 100., 160., 300.), None),
+                (Rect { lt: Point { x: AxisX { x: 90. }, y: AxisY { y: 164. } }, rb: Point { x: AxisX { x: 148. }, y: AxisY { y: 222. } } }, None),
+                (Rect { lt: Point { x: AxisX { x: 164. }, y: AxisY { y: 90. } }, rb: Point { x: AxisX { x: 222. }, y: AxisY { y: 148. } } }, None),
+                (Rect { lt: Point { x: AxisX { x: 856. }, y: AxisY { y: 782. } }, rb: Point { x: AxisX { x: 954. }, y: AxisY { y: 880. } } }, None),
+                (Rect { lt: Point { x: AxisX { x: 784. }, y: AxisY { y: 784. } }, rb: Point { x: AxisX { x: 878. }, y: AxisY { y: 878. } } }, None),
+                (Rect { lt: Point { x: AxisX { x: 930. }, y: AxisY { y: 782. } }, rb: Point { x: AxisX { x: 1028. }, y: AxisY { y: 880. } } }, None),
+                (Rect { lt: Point { x: AxisX { x: 802. }, y: AxisY { y: 876. } }, rb: Point { x: AxisX { x: 860. }, y: AxisY { y: 934. } } }, None),
             ],
-            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
-            rt(0., 0., 1000., 1000.,),
+            Limits { x_min_diff: 50., y_min_diff: 50., time_min_diff: 50., },
+            rt(0., 0., 1000., 1000.),
         );
         let mut cache = RouterCache::new();
         assert_eq!(
-            router.route(&rt(50., 150., 60., 160.), 2., sg(55., 155., 255., 155.), &mut cache).map(|r| r.hops),
-            Some([
-                Point { x: AxisX { x: 55. }, y: AxisY { y: 155. } },
-                Point { x: AxisX { x: 93. }, y: AxisY { y: 93. } },
-                Point { x: AxisX { x: 167. }, y: AxisY { y: 93. } },
-                Point { x: AxisX { x: 255. }, y: AxisY { y: 155. } },
-            ].as_ref())
-        );
-    }
-
-    #[test]
-    fn route_static_obstacles_trap() {
-        let router = Router::init_space(
-            vec![
-                (rt(100., 100., 160., 300.), None),
-                (rt(160., 240., 400., 300.), None),
-                (rt(400., 100., 460., 300.), None),
-            ],
-            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
-            rt(0., 0., 1000., 1000.,),
-        );
-        let mut cache = RouterCache::new();
-        assert_eq!(
-            router.route(&rt(260., 140., 300., 180.), 2., sg(280., 160., 580., 340.), &mut cache).map(|r| r.hops),
-            Some([
-                Point { x: AxisX { x: 280. }, y: AxisY { y: 160. } },
-                Point { x: AxisX { x: 378. }, y: AxisY { y: 78. } },
-                Point { x: AxisX { x: 482. }, y: AxisY { y: 78. } },
-                Point { x: AxisX { x: 580. }, y: AxisY { y: 340. } },
-            ].as_ref())
-        );
-    }
-
-    #[test]
-    fn route_moving_obstacle() {
-        let router = Router::init_space(
-            vec![
-                (rt(10., 20., 20., 40.), Some((sg(15., 30., 35., 30.), 1.)))
-            ],
-            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
-            rt(0., 0., 100., 100.,),
-        );
-        let mut cache = RouterCache::new();
-        assert_eq!(
-            router.route(&rt(10., 10., 14., 14.), 2., sg(12., 12., 32., 32.), &mut cache).map(|r| r.hops),
-            Some([
-                Point { x: AxisX { x: 12. }, y: AxisY { y: 12. } },
-                Point { x: AxisX { x: 24.375 }, y: AxisY { y: 16. } },
-                Point { x: AxisX { x: 36.798913043478265 }, y: AxisY { y: 16. } },
-                Point { x: AxisX { x: 23.335526315789473 }, y: AxisY { y: 16. } },
-                Point { x: AxisX { x: 32. }, y: AxisY { y: 32. } },
-            ].as_ref())
-        );
-    }
-
-    #[test]
-    fn route_moving_obstacle_towards() {
-        let router = Router::init_space(
-            vec![
-                (rt(60., 10., 80., 30.), Some((sg(70., 20., 10., 20.), 2.)))
-            ],
-            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
-            rt(0., 0., 200., 200.,),
-        );
-        let mut cache = RouterCache::new();
-        assert_eq!(
-            router.route(&rt(10., 10., 14., 14.,), 1., sg(12., 12., 42., 42.,), &mut cache).map(|r| r.hops),
-            Some([
-                Point { x: AxisX { x: 12. }, y: AxisY { y: 12. } },
-                Point { x: AxisX { x: 19.641304347826086 }, y: AxisY { y: 7. } },
-                Point { x: AxisX { x: 35.31578947368421 }, y: AxisY { y: 7. } },
-                Point { x: AxisX { x: 42. }, y: AxisY { y: 42. } },
-            ].as_ref())
-        );
-    }
-
-    #[test]
-    fn route_moving_obstacle_backwards() {
-        let router = Router::init_space(
-            vec![
-                (rt(20., 10., 40., 30.), Some((sg(30., 20., 80., 20.), 2.)))
-            ],
-            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
-            rt(0., 0., 200., 200.,),
-        );
-        let mut cache = RouterCache::new();
-        assert_eq!(
-            router.route(&rt(10., 10., 14., 14.), 3., sg(12., 12., 42., 42.), &mut cache).map(|r| r.hops),
-            Some([
-                Point { x: AxisX { x: 12. }, y: AxisY { y: 12. } },
-                Point { x: AxisX { x: 23.020833333333336 }, y: AxisY { y: 31. } },
-                Point { x: AxisX { x: 42. }, y: AxisY { y: 42. } },
-            ].as_ref())
-        );
-    }
-
-    #[test]
-    fn route_three_moving_obstacles() {
-        let router = Router::init_space(
-            vec![
-                (rt(80., 110., 100., 130.), Some((sg(90., 120., 30., 120.), 1.))),
-                (rt(90., 130., 110., 150.), Some((sg(100., 140., 40., 140.), 1.))),
-                (rt(80., 150., 100., 170.), Some((sg(90., 160., 30., 160.), 1.))),
-            ],
-            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
-            rt(0., 0., 200., 200.,),
-        );
-        let mut cache = RouterCache::new();
-        assert_eq!(
-            router.route(&rt(10., 138., 14., 142.), 2., sg(12., 140., 82., 140.), &mut cache).map(|r| r.hops),
-            Some([
-                Point { x: AxisX { x: 12. }, y: AxisY { y: 140. } },
-                Point { x: AxisX { x: 42.33572048611111 }, y: AxisY { y: 174. } },
-                Point { x: AxisX { x: 71.16471354166669 }, y: AxisY { y: 174. } },
-                Point { x: AxisX { x: 82. }, y: AxisY { y: 140. } },
-            ].as_ref())
-        );
-    }
-
-    #[test]
-    fn route_stuck() {
-        let router = Router::init_space(
-            vec![
-                (rt(100., 100., 160., 300.), None),
-                (rt(160., 240., 400., 300.), None),
-                (rt(400., 100., 460., 300.), None),
-            ],
-            Limits { x_min_diff: 5., y_min_diff: 5., time_min_diff: 4., },
-            rt(95., 95., 1000., 1000.,),
-        );
-        let mut cache = RouterCache::new();
-        assert_eq!(
-            router.route(&rt(260., 140., 300., 180.), 2., sg(280., 160., 580., 340.), &mut cache).map(|r| r.hops),
+            router.route(&rt(164., 164., 222., 222.), 0.4, sg(193., 193., 979., 905.), &mut cache).map(|r| r.hops),
             None
         );
     }
